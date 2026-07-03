@@ -1,22 +1,35 @@
 {
   "expo": {
-    "name": "app-football",
-    "slug": "app-football",
+    "name": "Kojiro",
+    "slug": "kojiro",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "appfootball",
-    "userInterfaceStyle": "automatic",
+    "scheme": "kojiro",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kojiro.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Kojiro utilise votre position pour trouver des matchs à proximité.",
+        "NSCameraUsageDescription": "Kojiro utilise la caméra pour publier des photos et vidéos.",
+        "NSPhotoLibraryUsageDescription": "Kojiro accède à vos photos pour votre profil et les highlights."
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0A0A0B",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "package": "com.kojiro.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -31,7 +44,22 @@
         {
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#0A0A0B"
+        }
+      ],
+      "expo-image",
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Kojiro utilise votre position pour trouver des matchs à proximité."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#39FF14"
         }
       ]
     ],

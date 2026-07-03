@@ -1,56 +1,92 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { Colors } from '@/constants/theme';
+import { useAuthStore } from '@/store/authStore';
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
+export { ErrorBoundary } from 'expo-router';
 
-export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
-};
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+const queryClient = new QueryClient();
+
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuthStore();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (!isAuthenticated && !inAuthGroup) {
+      router.replace('/(auth)/welcome');
+    } else if (isAuthenticated && inAuthGroup) {
+      router.replace('/(tabs)');
+    }
+  }, [isAuthenticated, segments, router]);
+
+  return <>{children}</>;
+}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
+    if (loaded) SplashScreen.hideAsync();
   }, [loaded]);
 
-  if (!loaded) {
-    return null;
-  }
-
-  return <RootLayoutNav />;
-}
-
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  if (!loaded) return null;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <View style={styles.root}>
+        <StatusBar style="light" />
+        <AuthGuard>
+          <Stack
+            screenOptions={{
+              headerStyle: { backgroundColor: Colors.background },
+              headerTintColor: Colors.text,
+              headerTitleStyle: { fontWeight: '700' },
+              contentStyle: { backgroundColor: Colors.background },
+              animation: 'slide_from_right',
+            }}
+          >
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="match/create" options={{ title: 'Créer un match', presentation: 'modal' }} />
+            <Stack.Screen name="match/[id]" options={{ title: 'Détail du match' }} />
+            <Stack.Screen name="match/teams" options={{ title: 'Composition des équipes' }} />
+            <Stack.Screen name="match/chat" options={{ title: 'Chat du match' }} />
+            <Stack.Screen name="map/index" options={{ title: 'Matchs à proximité' }} />
+            <Stack.Screen name="profile/stats" options={{ title: 'Statistiques' }} />
+            <Stack.Screen name="profile/history" options={{ title: 'Historique' }} />
+            <Stack.Screen name="profile/edit" options={{ title: 'Modifier le profil', presentation: 'modal' }} />
+            <Stack.Screen name="rankings/index" options={{ title: 'Classement' }} />
+            <Stack.Screen name="tournament/index" options={{ title: 'Tournois' }} />
+            <Stack.Screen name="social/feed" options={{ title: 'Highlights' }} />
+            <Stack.Screen name="notifications/index" options={{ title: 'Notifications' }} />
+          </Stack>
+        </AuthGuard>
+      </View>
+    </QueryClientProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+});
