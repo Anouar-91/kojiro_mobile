@@ -1,15 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 
 import { AttendanceActions, AttendanceSection } from '@/components/match/PlayerComponents';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
-import { getUserById } from '@/data/mock';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
+import { getUsersByAttendance, useProfileStore } from '@/store/profileStore';
 import { AttendanceStatus } from '@/types';
 import { formatMatchDate, formatPrice, getFormatLabel } from '@/utils/formatters';
 
@@ -19,6 +19,7 @@ export default function MatchDetailScreen() {
   const user = useAuthStore((s) => s.user);
   const match = useMatchStore((s) => s.getMatch(id ?? ''));
   const updateAttendance = useMatchStore((s) => s.updateAttendance);
+  const getProfile = useProfileStore((s) => s.getProfile);
 
   if (!match) {
     return (
@@ -28,18 +29,19 @@ export default function MatchDetailScreen() {
     );
   }
 
-  const present = match.attendees.filter((a) => a.status === 'present');
-  const maybe = match.attendees.filter((a) => a.status === 'maybe');
-  const absent = match.attendees.filter((a) => a.status === 'absent');
-
-  const presentUsers = present.map((a) => getUserById(a.userId)).filter(Boolean) as NonNullable<ReturnType<typeof getUserById>>[];
-  const maybeUsers = maybe.map((a) => getUserById(a.userId)).filter(Boolean) as NonNullable<ReturnType<typeof getUserById>>[];
-  const absentUsers = absent.map((a) => getUserById(a.userId)).filter(Boolean) as NonNullable<ReturnType<typeof getUserById>>[];
+  const presentUsers = getUsersByAttendance(match, 'present', getProfile);
+  const maybeUsers = getUsersByAttendance(match, 'maybe', getProfile);
+  const absentUsers = getUsersByAttendance(match, 'absent', getProfile);
 
   const myAttendance = match.attendees.find((a) => a.userId === user?.id)?.status ?? 'pending';
 
-  const handleStatusChange = (status: AttendanceStatus) => {
-    if (user) updateAttendance(match.id, user.id, status);
+  const handleStatusChange = async (status: AttendanceStatus) => {
+    if (!user) return;
+    try {
+      await updateAttendance(match.id, user.id, status);
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de mettre à jour');
+    }
   };
 
   return (
@@ -68,7 +70,7 @@ export default function MatchDetailScreen() {
           </View>
           <View style={styles.metaItem}>
             <Ionicons name="people-outline" size={16} color={Colors.textMuted} />
-            <Text style={styles.metaText}>{present.length}/{match.maxPlayers} joueurs</Text>
+            <Text style={styles.metaText}>{presentUsers.length}/{match.maxPlayers} joueurs</Text>
           </View>
         </View>
       </View>
@@ -77,8 +79,8 @@ export default function MatchDetailScreen() {
         <Text style={styles.sectionTitle}>Ma présence</Text>
         <AttendanceActions currentStatus={myAttendance} onStatusChange={handleStatusChange} />
         <ProgressBar
-          progress={present.length / match.maxPlayers}
-          label={`${present.length}/${match.maxPlayers} confirmés`}
+          progress={presentUsers.length / match.maxPlayers}
+          label={`${presentUsers.length}/${match.maxPlayers} confirmés`}
           showLabel
         />
       </View>

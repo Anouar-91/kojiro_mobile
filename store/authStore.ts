@@ -2,18 +2,30 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { currentUser } from '@/data/mock';
+import { mapProfileToUser, userToProfileUpdate } from '@/lib/mappers';
+import { supabase } from '@/lib/supabase';
+import { fetchProfile, updateProfile } from '@/services/profiles';
 import { User } from '@/types';
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialized: boolean;
+  initialize: () => Promise<void>;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithProvider: (provider: 'google' | 'apple') => Promise<boolean>;
   register: (email: string, password: string, name: string) => Promise<boolean>;
-  logout: () => void;
-  updateUser: (updates: Partial<User>) => void;
+  logout: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => Promise<void>;
+  refreshProfile: () => Promise<void>;
+}
+
+function getAuthErrorMessage(message: string): string {
+  if (message.includes('Invalid login credentials')) return 'Email ou mot de passe incorrect';
+  if (message.includes('User already registered')) return 'Un compte existe déjà avec cet email';
+  if (message.includes('Password should be at least')) return 'Le mot de passe doit contenir au moins 6 caractères';
+  return message;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -22,47 +34,116 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      isInitialized: false,
 
-      login: async (email: string, _password: string) => {
-        set({ isLoading: true });
-        await new Promise((r) => setTimeout(r, 800));
-        set({
-          user: { ...currentUser, email },
-          isAuthenticated: true,
-          isLoading: false,
+      initialize: async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            let profile = await fetchProfile(session.user.id);
+            if (!profile) {
+              await new Promise((r) => setTimeout(r, 500));
+              profile = await fetchProfile(session.user.id);
+            }
+            if (profile) {
+              set({ user: profile, isAuthenticated: true });
+            }
+          }
+        } finally {
+          set({ isInitialized: true });
+        }
+
+        supabase.auth.onAuthStateChange(async (_event, session) => {
+          if (session?.user) {
+            const profile = await fetchProfile(session.user.id);
+            if (profile) set({ user: profile, isAuthenticated: true });
+          } else {
+            set({ user: null, isAuthenticated: false });
+          }
         });
-        return true;
       },
 
-      loginWithProvider: async (_provider: 'google' | 'apple') => {
+      login: async (email, password) => {
         set({ isLoading: true });
-        await new Promise((r) => setTimeout(r, 1000));
-        set({
-          user: currentUser,
-          isAuthenticated: true,
-          isLoading: false,
-        });
-        return true;
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          if (error) throw new Error(getAuthErrorMessage(error.message));
+
+          const profile = await fetchProfile(data.user.id);
+          if (!profile) throw new Error('Profil introuvable');
+
+          set({ user: profile, isAuthenticated: true, isLoading: false });
+          return true;
+        } catch (e) {
+          set({ isLoading: false });
+          throw e;
+        }
       },
 
-      register: async (email: string, _password: string, name: string) => {
-        set({ isLoading: true });
-        await new Promise((r) => setTimeout(r, 800));
-        set({
-          user: { ...currentUser, email, name, level: 1, xp: 0, stats: { ...currentUser.stats, matchesPlayed: 0, goals: 0, assists: 0, wins: 0, losses: 0, draws: 0, mvpCount: 0 } },
-          isAuthenticated: true,
-          isLoading: false,
-        });
-        return true;
+      loginWithProvider: async (_provider) => {
+        set({ isLoading: false });
+        throw new Error('Google/Apple Sign-In disponible prochainement');
       },
 
-      logout: () => {
+      register: async (email, password, name) => {
+        set({ isLoading: true });
+        try {
+          const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { name } },
+          });
+          if (error) throw new Error(getAuthErrorMessage(error.message));
+          if (!data.user) throw new Error('Inscription échouée');
+
+          if (!data.session) {
+            set({ isLoading: false });
+            throw new Error(
+              'Compte créé ! Vérifie ton email pour confirmer, ou désactive la confirmation email dans Supabase (Auth → Providers → Email).'
+            );
+          }
+
+          await new Promise((r) => setTimeout(r, 800));
+          let profile = await fetchProfile(data.user.id);
+
+          if (!profile) {
+            await supabase.from('profiles').upsert({
+              id: data.user.id,
+              email,
+              name,
+            });
+            profile = await fetchProfile(data.user.id);
+          }
+
+          if (!profile) throw new Error('Profil introuvable après inscription');
+
+          set({ user: profile, isAuthenticated: true, isLoading: false });
+          return true;
+        } catch (e) {
+          set({ isLoading: false });
+          throw e;
+        }
+      },
+
+      logout: async () => {
+        await supabase.auth.signOut();
         set({ user: null, isAuthenticated: false });
       },
 
-      updateUser: (updates: Partial<User>) => {
+      updateUser: async (updates) => {
         const { user } = get();
-        if (user) set({ user: { ...user, ...updates } });
+        if (!user) return;
+
+        const dbUpdates = userToProfileUpdate(updates);
+        const updated = await updateProfile(user.id, dbUpdates);
+        if (updated) set({ user: updated });
+      },
+
+      refreshProfile: async () => {
+        const { user } = get();
+        if (!user) return;
+        const profile = await fetchProfile(user.id);
+        if (profile) set({ user: profile });
       },
     }),
     {

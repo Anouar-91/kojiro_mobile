@@ -4,11 +4,13 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
+import { useMatchStore } from '@/store/matchStore';
+import { useProfileStore } from '@/store/profileStore';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -17,11 +19,29 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, isInitialized, initialize } = useAuthStore();
+  const fetchMatches = useMatchStore((s) => s.fetchMatches);
+  const fetchNotifications = useMatchStore((s) => s.fetchNotifications);
+  const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
+  const userId = useAuthStore((s) => s.user?.id);
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
+    initialize();
+  }, [initialize]);
+
+  useEffect(() => {
+    if (isAuthenticated && userId) {
+      fetchMatches();
+      fetchProfiles();
+      fetchNotifications(userId);
+    }
+  }, [isAuthenticated, userId, fetchMatches, fetchProfiles, fetchNotifications]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!isAuthenticated && !inAuthGroup) {
@@ -29,7 +49,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     } else if (isAuthenticated && inAuthGroup) {
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated, segments, router]);
+  }, [isAuthenticated, isInitialized, segments, router]);
+
+  if (!isInitialized) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
 
   return <>{children}</>;
 }
@@ -69,7 +97,10 @@ export default function RootLayout() {
             <Stack.Screen name="match/[id]" options={{ title: 'Détail du match' }} />
             <Stack.Screen name="match/teams" options={{ title: 'Composition des équipes' }} />
             <Stack.Screen name="match/chat" options={{ title: 'Chat du match' }} />
-            <Stack.Screen name="map/index" options={{ title: 'Matchs à proximité' }} />
+            <Stack.Screen
+              name="map/index"
+              options={{ title: 'Matchs à proximité', headerShown: true }}
+            />
             <Stack.Screen name="profile/stats" options={{ title: 'Statistiques' }} />
             <Stack.Screen name="profile/history" options={{ title: 'Historique' }} />
             <Stack.Screen name="profile/edit" options={{ title: 'Modifier le profil', presentation: 'modal' }} />
@@ -88,5 +119,11 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  loading: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

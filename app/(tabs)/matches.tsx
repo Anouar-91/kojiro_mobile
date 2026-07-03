@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { UpcomingMatchCard } from '@/components/home/MatchCards';
 import { Button } from '@/components/ui/Button';
 import { ChipGroup } from '@/components/ui/Chip';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { useAppRefresh } from '@/hooks/useAppRefresh';
 import { useMatchStore } from '@/store/matchStore';
 import { MatchFormat } from '@/types';
 
@@ -18,8 +19,16 @@ export default function MatchesScreen() {
   const insets = useSafeAreaInsets();
   const matches = useMatchStore((s) => s.matches);
   const [filter, setFilter] = useState<FilterType>('all');
+  const refresh = useAppRefresh();
+  const [refreshing, setRefreshing] = useState(false);
 
   const filtered = filter === 'all' ? matches : matches.filter((m) => m.format === filter);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  }, [refresh]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -31,27 +40,25 @@ export default function MatchesScreen() {
       </View>
 
       <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filters}
-      >
-        <ChipGroup
-          options={[
-            { label: 'Tous', value: 'all' },
-            { label: '5v5', value: 5 },
-            { label: '7v7', value: 7 },
-            { label: '11v11', value: 11 },
-          ]}
-          selected={filter}
-          onSelect={(v) => setFilter(v as FilterType)}
-        />
-      </ScrollView>
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+        }
       >
+        <View style={styles.filters}>
+          <ChipGroup
+            options={[
+              { label: 'Tous', value: 'all' },
+              { label: '5v5', value: 5 },
+              { label: '7v7', value: 7 },
+              { label: '11v11', value: 11 },
+            ]}
+            selected={filter}
+            onSelect={(v) => setFilter(v as FilterType)}
+          />
+        </View>
+
         {filtered.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="football-outline" size={48} color={Colors.textMuted} />
@@ -85,7 +92,10 @@ export default function MatchesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -93,7 +103,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xxl,
     paddingVertical: Spacing.lg,
   },
-  title: { ...Typography.h1, color: Colors.text },
+  title: {
+    ...Typography.h1,
+    color: Colors.text,
+  },
   mapBtn: {
     width: 44,
     height: 44,
@@ -102,11 +115,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  filters: { paddingHorizontal: Spacing.xxl, paddingBottom: Spacing.md },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: Spacing.xxl },
-  empty: { alignItems: 'center', paddingVertical: Spacing.xxxl * 2, gap: Spacing.lg },
-  emptyText: { ...Typography.body, color: Colors.textMuted },
+  scrollContent: {
+    paddingHorizontal: Spacing.xxl,
+    paddingBottom: Spacing.lg,
+  },
+  filters: {
+    marginBottom: Spacing.lg,
+  },
+  empty: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xxxl * 2,
+    gap: Spacing.lg,
+  },
+  emptyText: {
+    ...Typography.body,
+    color: Colors.textMuted,
+  },
   historyLink: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -118,8 +142,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  historyText: { ...Typography.bodyBold, color: Colors.primary, flex: 1, fontSize: 14 },
-  bottomSpacer: { height: 100 },
+  historyText: {
+    ...Typography.bodyBold,
+    color: Colors.primary,
+    flex: 1,
+    fontSize: 14,
+  },
+  bottomSpacer: {
+    height: 80,
+  },
   fab: {
     position: 'absolute',
     bottom: 24,

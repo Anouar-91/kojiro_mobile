@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NearbyMatchCard, UpcomingMatchCard } from '@/components/home/MatchCards';
@@ -8,9 +9,12 @@ import { ActiveFriendsRow, NewsCard } from '@/components/home/SocialRow';
 import { Button } from '@/components/ui/Button';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Colors, Spacing, Typography } from '@/constants/theme';
-import { mockNews, mockUsers } from '@/data/mock';
+import { useAppRefresh } from '@/hooks/useAppRefresh';
+import { fetchNews } from '@/services/news';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
+import { useProfileStore } from '@/store/profileStore';
+import { NewsItem } from '@/types';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -18,9 +22,23 @@ export default function HomeScreen() {
   const user = useAuthStore((s) => s.user);
   const matches = useMatchStore((s) => s.matches);
   const unreadCount = useMatchStore((s) => s.unreadCount());
+  const getOtherProfiles = useProfileStore((s) => s.getOtherProfiles);
+  const refresh = useAppRefresh();
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   const upcomingMatches = matches.filter((m) => m.status === 'upcoming').slice(0, 3);
-  const activeFriends = mockUsers.filter((u) => u.id !== user?.id).slice(0, 6);
+  const activeFriends = getOtherProfiles(user?.id).slice(0, 6);
+
+  useEffect(() => {
+    fetchNews().then(setNews).catch(() => setNews([]));
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([refresh(), fetchNews().then(setNews).catch(() => {})]);
+    setRefreshing(false);
+  }, [refresh]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -43,6 +61,9 @@ export default function HomeScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+        }
       >
         <Button
           title="Créer un match"
@@ -84,13 +105,13 @@ export default function HomeScreen() {
 
         <SectionHeader title="Actualités" action="Plus" onAction={() => {}} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {mockNews.map((news) => (
+          {news.map((item) => (
             <NewsCard
-              key={news.id}
-              title={news.title}
-              summary={news.summary}
-              imageUrl={news.imageUrl}
-              category={news.category}
+              key={item.id}
+              title={item.title}
+              summary={item.summary}
+              imageUrl={item.imageUrl}
+              category={item.category}
             />
           ))}
         </ScrollView>

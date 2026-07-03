@@ -19,27 +19,31 @@ export default function NotificationsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {notifications.map((notif) => (
-        <Pressable
-          key={notif.id}
-          style={[styles.item, !notif.read && styles.unread]}
-          onPress={() => markRead(notif.id)}
-        >
-          <View style={[styles.iconWrap, !notif.read && styles.iconWrapUnread]}>
-            <Ionicons
-              name={NOTIF_ICONS[notif.type] ?? 'notifications-outline'}
-              size={22}
-              color={notif.read ? Colors.textMuted : Colors.primary}
-            />
-          </View>
-          <View style={styles.textWrap}>
-            <Text style={[styles.title, !notif.read && styles.titleUnread]}>{notif.title}</Text>
-            <Text style={styles.body}>{notif.body}</Text>
-            <Text style={styles.time}>{formatRelativeTime(notif.createdAt)}</Text>
-          </View>
-          {!notif.read && <View style={styles.dot} />}
-        </Pressable>
-      ))}
+      {notifications.length === 0 ? (
+        <Text style={styles.empty}>Aucune notification pour le moment.</Text>
+      ) : (
+        notifications.map((notif) => (
+          <Pressable
+            key={notif.id}
+            style={[styles.item, !notif.read && styles.unread]}
+            onPress={() => markRead(notif.id)}
+          >
+            <View style={[styles.iconWrap, !notif.read && styles.iconWrapUnread]}>
+              <Ionicons
+                name={NOTIF_ICONS[notif.type] ?? 'notifications-outline'}
+                size={22}
+                color={notif.read ? Colors.textMuted : Colors.primary}
+              />
+            </View>
+            <View style={styles.textWrap}>
+              <Text style={[styles.title, !notif.read && styles.titleUnread]}>{notif.title}</Text>
+              <Text style={styles.body}>{notif.body}</Text>
+              <Text style={styles.time}>{formatRelativeTime(notif.createdAt)}</Text>
+            </View>
+            {!notif.read && <View style={styles.dot} />}
+          </Pressable>
+        ))
+      )}
     </ScrollView>
   );
 }
@@ -47,6 +51,7 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: Spacing.lg },
+  empty: { ...Typography.body, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.xxxl },
   item: {
     flexDirection: 'row',
     alignItems: 'flex-start',

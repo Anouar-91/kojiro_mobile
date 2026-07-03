@@ -30,13 +30,21 @@ export default function LoginScreen() {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs');
       return;
     }
-    const success = await login(email, password);
-    if (success) router.replace('/(tabs)');
+    try {
+      const success = await login(email, password);
+      if (success) router.replace('/(tabs)');
+    } catch (e) {
+      Alert.alert('Connexion impossible', e instanceof Error ? e.message : 'Erreur inconnue');
+    }
   };
 
   const handleSocial = async (provider: 'google' | 'apple') => {
-    const success = await loginWithProvider(provider);
-    if (success) router.replace('/(tabs)');
+    try {
+      const success = await loginWithProvider(provider);
+      if (success) router.replace('/(tabs)');
+    } catch (e) {
+      Alert.alert('Connexion sociale', e instanceof Error ? e.message : 'Bientôt disponible');
+    }
   };
 
   return (

@@ -1,24 +1,29 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { TeamColumn } from '@/components/match/PlayerComponents';
 import { Button } from '@/components/ui/Button';
 import { Colors, Spacing, Typography } from '@/constants/theme';
-import { getMatchAttendees } from '@/data/mock';
+import { getPresentUsersFromMatch, useProfileStore } from '@/store/profileStore';
 import { useMatchStore } from '@/store/matchStore';
-import { balanceTeams } from '@/utils/teamBalancer';
+import { balanceTeams, BalancedTeams } from '@/utils/teamBalancer';
 
 export default function TeamsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const match = useMatchStore((s) => s.getMatch(id ?? ''));
+  const getProfile = useProfileStore((s) => s.getProfile);
+  const [teams, setTeams] = useState<BalancedTeams>({ teamA: [], teamB: [], averageA: 0, averageB: 0 });
 
-  const initialPlayers = match ? getMatchAttendees(match) : [];
-  const [teams, setTeams] = useState(() => balanceTeams(initialPlayers));
+  const rebalance = useCallback(() => {
+    if (!match) return;
+    const players = getPresentUsersFromMatch(match, getProfile);
+    setTeams(balanceTeams(players));
+  }, [match, getProfile]);
 
-  const handleRebalance = useCallback(() => {
-    setTeams(balanceTeams(initialPlayers));
-  }, [initialPlayers]);
+  useEffect(() => {
+    rebalance();
+  }, [rebalance]);
 
   if (!match) {
     return (
@@ -27,6 +32,8 @@ export default function TeamsScreen() {
       </View>
     );
   }
+
+  const playerCount = getPresentUsersFromMatch(match, getProfile).length;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -40,33 +47,41 @@ export default function TeamsScreen() {
         </View>
       </View>
 
-      <View style={styles.teamsRow}>
-        <TeamColumn
-          title="Équipe A"
-          players={teams.teamA.map((p) => p.user)}
-          averageLevel={teams.averageA}
-          color={Colors.primary}
-        />
-        <View style={styles.vs}>
-          <Text style={styles.vsText}>VS</Text>
-        </View>
-        <TeamColumn
-          title="Équipe B"
-          players={teams.teamB.map((p) => p.user)}
-          averageLevel={teams.averageB}
-          color={Colors.info}
-        />
-      </View>
-
-      <View style={styles.balanceInfo}>
-        <Text style={styles.balanceText}>
-          Écart de niveau : {Math.abs(teams.averageA - teams.averageB)} pts
-          {Math.abs(teams.averageA - teams.averageB) <= 3 ? ' ✓ Équilibré' : ''}
+      {playerCount < 2 ? (
+        <Text style={styles.empty}>
+          Il faut au moins 2 joueurs confirmés pour composer les équipes.
         </Text>
-      </View>
+      ) : (
+        <>
+          <View style={styles.teamsRow}>
+            <TeamColumn
+              title="Équipe A"
+              players={teams.teamA.map((p) => p.user)}
+              averageLevel={teams.averageA}
+              color={Colors.primary}
+            />
+            <View style={styles.vs}>
+              <Text style={styles.vsText}>VS</Text>
+            </View>
+            <TeamColumn
+              title="Équipe B"
+              players={teams.teamB.map((p) => p.user)}
+              averageLevel={teams.averageB}
+              color={Colors.info}
+            />
+          </View>
+
+          <View style={styles.balanceInfo}>
+            <Text style={styles.balanceText}>
+              Écart de niveau : {Math.abs(teams.averageA - teams.averageB)} pts
+              {Math.abs(teams.averageA - teams.averageB) <= 3 ? ' ✓ Équilibré' : ''}
+            </Text>
+          </View>
+        </>
+      )}
 
       <View style={styles.actions}>
-        <Button title="Rééquilibrer" onPress={handleRebalance} variant="outline" icon="shuffle-outline" fullWidth />
+        <Button title="Rééquilibrer" onPress={rebalance} variant="outline" icon="shuffle-outline" fullWidth />
         <Button title="Valider les équipes" onPress={() => {}} fullWidth />
       </View>
     </ScrollView>
@@ -78,6 +93,7 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.xxl },
   notFound: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   notFoundText: { color: Colors.textMuted },
+  empty: { ...Typography.body, color: Colors.textMuted, textAlign: 'center', marginBottom: Spacing.xl },
   aiHeader: {
     flexDirection: 'row',
     backgroundColor: Colors.primaryMuted,

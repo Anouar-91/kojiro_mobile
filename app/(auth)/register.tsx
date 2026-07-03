@@ -31,8 +31,12 @@ export default function RegisterScreen() {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs');
       return;
     }
-    const success = await register(email, password, name);
-    if (success) router.replace('/(tabs)');
+    try {
+      const success = await register(email, password, name);
+      if (success) router.replace('/(tabs)');
+    } catch (e) {
+      Alert.alert('Inscription impossible', e instanceof Error ? e.message : 'Erreur inconnue');
+    }
   };
 
   return (

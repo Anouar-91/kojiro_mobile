@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
-import { getUserById } from '@/data/mock';
+import { useProfileStore } from '@/store/profileStore';
 import { Match } from '@/types';
 import { formatShortDate, getFormatLabel } from '@/utils/formatters';
 
@@ -17,11 +17,12 @@ interface UpcomingMatchCardProps {
 }
 
 export function UpcomingMatchCard({ match, onPress }: UpcomingMatchCardProps) {
+  const getProfile = useProfileStore((s) => s.getProfile);
   const presentCount = match.attendees.filter((a) => a.status === 'present').length;
   const avatars = match.attendees
     .filter((a) => a.status === 'present')
     .slice(0, 5)
-    .map((a) => getUserById(a.userId)?.avatar ?? '');
+    .map((a) => getProfile(a.userId)?.avatar ?? '');
 
   return (
     <Card onPress={onPress} style={styles.card}>

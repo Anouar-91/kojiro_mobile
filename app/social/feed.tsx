@@ -1,13 +1,16 @@
-import { useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { HighlightCard } from '@/components/community/CommunityComponents';
 import { Button } from '@/components/ui/Button';
-import { Colors, Spacing } from '@/constants/theme';
-import { getUserById, mockSocialPosts } from '@/data/mock';
+import { Colors, Spacing, Typography } from '@/constants/theme';
+import { mockSocialPosts } from '@/data/mock';
+import { useProfileStore } from '@/store/profileStore';
 
 export default function SocialFeedScreen() {
-  const router = useRouter();
+  const getProfile = useProfileStore((s) => s.getProfile);
+  const postsWithAuthors = mockSocialPosts
+    .map((post) => ({ post, author: getProfile(post.authorId) }))
+    .filter((item) => item.author);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -19,11 +22,13 @@ export default function SocialFeedScreen() {
         style={styles.createBtn}
       />
 
-      {mockSocialPosts.map((post) => {
-        const author = getUserById(post.authorId);
-        if (!author) return null;
-        return <HighlightCard key={post.id} post={post} author={author} />;
-      })}
+      {postsWithAuthors.length === 0 ? (
+        <Text style={styles.empty}>Les highlights arrivent bientôt !</Text>
+      ) : (
+        postsWithAuthors.map(({ post, author }) => (
+          <HighlightCard key={post.id} post={post} author={author!} />
+        ))
+      )}
     </ScrollView>
   );
 }
@@ -32,4 +37,5 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: Spacing.xxl },
   createBtn: { marginBottom: Spacing.xl },
+  empty: { ...Typography.body, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.xxxl },
 });

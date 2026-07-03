@@ -29,27 +29,33 @@ export default function CreateMatchScreen() {
       Alert.alert('Erreur', 'Veuillez indiquer un lieu');
       return;
     }
+    if (!user) {
+      Alert.alert('Erreur', 'Vous devez être connecté');
+      return;
+    }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 600));
-
-    const match = createMatch(
-      {
-        title: `Foot à ${format}`,
-        format,
-        date,
-        time,
-        locationName,
-        locationAddress: locationAddress || locationName,
-        latitude: 48.8566,
-        longitude: 2.3522,
-        pricePerPlayer: parseFloat(price) || 0,
-        description,
-      },
-      user?.id ?? 'user-1'
-    );
-
-    setLoading(false);
-    router.replace(`/match/${match.id}`);
+    try {
+      const match = await createMatch(
+        {
+          title: `Foot à ${format}`,
+          format,
+          date,
+          time,
+          locationName,
+          locationAddress: locationAddress || locationName,
+          latitude: 48.8566,
+          longitude: 2.3522,
+          pricePerPlayer: parseFloat(price) || 0,
+          description,
+        },
+        user.id
+      );
+      router.replace(`/match/${match.id}`);
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de créer le match');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

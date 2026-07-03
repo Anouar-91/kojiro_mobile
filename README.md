@@ -18,6 +18,48 @@ Application mobile premium pour les passionnés de football amateur. Design dark
 - **Réseau social** — Highlights photos et vidéos
 - **Notifications** — Temps réel (matchs, équipes, social)
 
+## Supabase (backend)
+
+### 1. Configurer `.env`
+
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbG...
+```
+
+> L'URL doit être la base du projet **sans** `/rest/v1/`.
+
+### 2. Créer les tables
+
+Dans **Supabase Dashboard → SQL Editor**, exécute le contenu de :
+
+```
+supabase/schema.sql
+```
+
+### 3. Migration 002 (notifications + classement)
+
+Exécute aussi `supabase/migrations/002_notifications_leaderboard.sql` dans le SQL Editor.
+
+### 4. Migration 003 (historique, tournois, actu)
+
+Exécute `supabase/migrations/003_history_tournaments_news.sql` dans le SQL Editor.
+
+### 5. Auth (dev)
+
+Pour tester sans confirmation email :
+**Authentication → Providers → Email → désactiver "Confirm email"**
+
+### 4. Relancer l'app
+
+```bash
+npm start
+```
+
+Inscription → création de match → chat en temps réel.
+
+---
+
 ## Stack technique
 
 | Couche | Technologie |

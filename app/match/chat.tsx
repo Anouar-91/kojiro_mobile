@@ -1,9 +1,11 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -11,34 +13,81 @@ import {
 } from 'react-native';
 
 import { ChatBubble } from '@/components/chat/ChatComponents';
-import { Colors, Spacing, Typography } from '@/constants/theme';
-import { getUserById, mockChatMessages } from '@/data/mock';
+import { Colors, Spacing } from '@/constants/theme';
+import { fetchProfile } from '@/services/profiles';
+import { fetchMessages, sendMessage, subscribeToMessages } from '@/services/messages';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
-import { ChatMessage } from '@/types';
+import { ChatMessage, User } from '@/types';
 
 export default function MatchChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
   const match = useMatchStore((s) => s.getMatch(id ?? ''));
-  const [messages, setMessages] = useState<ChatMessage[]>(
-    mockChatMessages.filter((m) => m.chatId === match?.chatId || m.chatId === 'chat-1')
-  );
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [senders, setSenders] = useState<Record<string, User>>({});
   const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
 
-  const handleSend = () => {
-    if (!input.trim() || !user || !match) return;
-    const newMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      chatId: match.chatId,
-      senderId: user.id,
-      content: input.trim(),
-      timestamp: new Date().toISOString(),
-      type: 'text',
+  useEffect(() => {
+    if (!match) return;
+
+    let active = true;
+
+    fetchMessages(match.id)
+      .then((msgs) => {
+        if (!active) return;
+        setMessages(msgs);
+        msgs.forEach((m) => {
+          if (m.senderId !== 'system') {
+            fetchProfile(m.senderId).then((profile) => {
+              if (profile && active) {
+                setSenders((prev) => ({ ...prev, [m.senderId]: profile }));
+              }
+            });
+          }
+        });
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    const channel = subscribeToMessages(match.id, (msg) => {
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+      if (msg.senderId !== 'system') {
+        fetchProfile(msg.senderId).then((profile) => {
+          if (profile) setSenders((prev) => ({ ...prev, [msg.senderId]: profile }));
+        });
+      }
+    });
+
+    return () => {
+      active = false;
+      channel.unsubscribe();
     };
-    setMessages((prev) => [...prev, newMsg]);
-    setInput('');
+  }, [match]);
+
+  const handleSend = async () => {
+    if (!input.trim() || !user || !match || sending) return;
+    setSending(true);
+    try {
+      const msg = await sendMessage(match.id, user.id, input.trim());
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+      setSenders((prev) => ({ ...prev, [user.id]: user }));
+      setInput('');
+    } finally {
+      setSending(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color={Colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -51,7 +100,7 @@ export default function MatchChatScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => {
-          const sender = getUserById(item.senderId);
+          const sender = item.senderId === user?.id ? user : senders[item.senderId];
           return (
             <ChatBubble
               message={item}
@@ -61,6 +110,9 @@ export default function MatchChatScreen() {
             />
           );
         }}
+        ListEmptyComponent={
+          <Text style={styles.empty}>Aucun message. Lance la conversation !</Text>
+        }
       />
 
       <View style={styles.inputBar}>
@@ -72,9 +124,13 @@ export default function MatchChatScreen() {
           onChangeText={setInput}
           multiline
         />
-        <View style={styles.sendBtn} onTouchEnd={handleSend}>
-          <Text style={styles.sendIcon}>➤</Text>
-        </View>
+        <Pressable style={styles.sendBtn} onPress={handleSend} disabled={sending}>
+          {sending ? (
+            <ActivityIndicator color={Colors.background} size="small" />
+          ) : (
+            <Text style={styles.sendIcon}>➤</Text>
+          )}
+        </Pressable>
       </View>
     </KeyboardAvoidingView>
   );
@@ -82,7 +138,9 @@ export default function MatchChatScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
   list: { padding: Spacing.lg, flexGrow: 1 },
+  empty: { color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.xxxl },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',

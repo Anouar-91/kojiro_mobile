@@ -19,10 +19,14 @@ export default function EditProfileScreen() {
   const [position, setPosition] = useState<Position>(user?.position ?? 'MID');
   const [foot, setFoot] = useState<Foot>(user?.foot ?? 'Droit');
 
-  const handleSave = () => {
-    updateUser({ name, bio, city, position, foot });
-    Alert.alert('Profil mis à jour', 'Tes modifications ont été enregistrées.');
-    router.back();
+  const handleSave = async () => {
+    try {
+      await updateUser({ name, bio, city, position, foot });
+      Alert.alert('Profil mis à jour', 'Tes modifications ont été enregistrées.');
+      router.back();
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de sauvegarder');
+    }
   };
 
   return (

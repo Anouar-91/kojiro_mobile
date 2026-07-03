@@ -88,5 +88,6 @@ const styles = StyleSheet.create({
   group: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignSelf: 'flex-start',
   },
 });
