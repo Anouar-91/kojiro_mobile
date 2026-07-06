@@ -13,7 +13,8 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Kojiro utilise votre position pour trouver des matchs à proximité.",
         "NSCameraUsageDescription": "Kojiro utilise la caméra pour publier des photos et vidéos.",
-        "NSPhotoLibraryUsageDescription": "Kojiro accède à vos photos pour votre profil et les highlights."
+        "NSPhotoLibraryUsageDescription": "Kojiro accède à vos photos pour votre profil et les highlights.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -28,7 +29,9 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
-        "READ_EXTERNAL_STORAGE"
+        "READ_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ],
       "predictiveBackGestureEnabled": false
     },
@@ -66,6 +69,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "82c43213-77bf-4227-9fb2-fce80d51c335"
+      }
     }
   }
 }
