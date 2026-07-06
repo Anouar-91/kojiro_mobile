@@ -18,7 +18,6 @@ export function ActiveFriendsRow({ friends }: ActiveFriendsRowProps) {
         <View key={friend.id} style={styles.friend}>
           <View style={styles.avatarWrap}>
             <Avatar uri={friend.avatar} size={56} name={friend.name} />
-            <View style={styles.onlineDot} />
           </View>
           <Text style={styles.name} numberOfLines={1}>{friend.name.split(' ')[0]}</Text>
           <Text style={styles.position}>{getPositionLabel(friend.position)}</Text>
@@ -61,17 +60,6 @@ const styles = StyleSheet.create({
   avatarWrap: {
     position: 'relative',
     marginBottom: Spacing.xs,
-  },
-  onlineDot: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Colors.primary,
-    borderWidth: 2,
-    borderColor: Colors.background,
   },
   name: {
     ...Typography.caption,

@@ -170,6 +170,8 @@ export const mockMatches: Match[] = [
     id: 'match-1',
     title: 'Foot à 7 - Soirée entre amis',
     format: 7,
+    substitutesPerTeam: 0,
+    visibility: 'public',
     date: '2026-07-05',
     time: '19:00',
     location: {
@@ -201,6 +203,8 @@ export const mockMatches: Match[] = [
     id: 'match-2',
     title: 'Foot à 5 - Quick match',
     format: 5,
+    substitutesPerTeam: 0,
+    visibility: 'public',
     date: '2026-07-04',
     time: '12:30',
     location: {
@@ -227,6 +231,8 @@ export const mockMatches: Match[] = [
     id: 'match-3',
     title: 'Foot à 11 - Dimanche matin',
     format: 11,
+    substitutesPerTeam: 0,
+    visibility: 'public',
     date: '2026-07-06',
     time: '10:00',
     location: {

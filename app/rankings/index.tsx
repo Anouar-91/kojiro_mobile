@@ -6,6 +6,7 @@ import { ChipGroup } from '@/components/ui/Chip';
 import { Colors, Spacing } from '@/constants/theme';
 import { fetchFriendsLeaderboard, fetchLeaderboard } from '@/services/leaderboard';
 import { useAuthStore } from '@/store/authStore';
+import { useFriendStore } from '@/store/friendStore';
 import { useProfileStore } from '@/store/profileStore';
 import { LeaderboardEntry, User } from '@/types';
 
@@ -14,6 +15,7 @@ type RankingTab = 'general' | 'monthly' | 'friends' | 'cities';
 export default function RankingsScreen() {
   const user = useAuthStore((s) => s.user);
   const profiles = useProfileStore((s) => s.profiles);
+  const friendIds = useFriendStore((s) => s.friendIds);
   const getProfile = useProfileStore((s) => s.getProfile);
   const [tab, setTab] = useState<RankingTab>('general');
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -25,7 +27,6 @@ export default function RankingsScreen() {
     setLoading(true);
     try {
       if (tab === 'friends' && user) {
-        const friendIds = profiles.filter((p) => p.id !== user.id).map((p) => p.id);
         setLeaderboard(await fetchFriendsLeaderboard(friendIds, user.id));
       } else {
         setLeaderboard(await fetchLeaderboard());
@@ -33,7 +34,7 @@ export default function RankingsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [tab, user, profiles]);
+  }, [tab, user, friendIds]);
 
   useEffect(() => {
     load();

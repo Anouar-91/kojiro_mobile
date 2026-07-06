@@ -45,12 +45,57 @@ Exécute aussi `supabase/migrations/002_notifications_leaderboard.sql` dans le S
 
 Exécute `supabase/migrations/003_history_tournaments_news.sql` dans le SQL Editor.
 
-### 5. Auth (dev)
+### 5. Migration 004 (social + storage)
+
+Exécute `supabase/migrations/004_social_storage.sql` dans le SQL Editor.
+
+Crée la table `social_posts`, le bucket Storage `highlights` et la colonne `push_token` sur les profils.
+
+### 6. Auth (dev)
 
 Pour tester sans confirmation email :
 **Authentication → Providers → Email → désactiver "Confirm email"**
 
-### 4. Relancer l'app
+### 7. OAuth Google / Apple (optionnel)
+
+Dans Supabase → **Authentication → URL Configuration**, ajoute ces Redirect URLs :
+
+```
+kojiro://auth/callback
+exp://127.0.0.1:8081/--/auth/callback
+```
+
+Active **Google** et **Apple** dans Providers et configure les clés OAuth.
+
+### 8. Migration 005 (fin de match)
+
+Exécute `supabase/migrations/005_complete_match.sql` dans le SQL Editor.
+
+Permet à l'organisateur de terminer un match, enregistrer scores/stats et mettre à jour XP + historique.
+
+### 9. Migration 006 (invitations)
+
+Exécute `supabase/migrations/006_match_invites.sql` dans le SQL Editor.
+
+Permet à l'organisateur d'inviter des joueurs (notification + statut `pending`).
+
+### 10. Migration 007 (formats flexibles)
+
+Exécute `supabase/migrations/007_flexible_match_format.sql` pour autoriser 6v6, 9v9, etc.
+
+### 11. Migration 008 (remplaçants)
+
+Exécute `supabase/migrations/008_substitutes.sql` pour gérer les remplaçants par équipe.
+
+### 12. Migration 009 (amis + match privé)
+
+Exécute `supabase/migrations/009_friendships.sql` dans le SQL Editor.
+
+### 13. Migration 010 (position GPS des joueurs)
+
+Exécute `supabase/migrations/010_profile_location.sql` pour stocker latitude/longitude sur les profils (carte et distances réelles).
+
+### 14. Relancer l'app
 
 ```bash
 npm start

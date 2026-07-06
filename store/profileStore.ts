@@ -40,7 +40,7 @@ export function getPresentUsersFromMatch(match: Match, getProfile: (id: string) 
 
 export function getUsersByAttendance(
   match: Match,
-  status: 'present' | 'maybe' | 'absent',
+  status: 'present' | 'maybe' | 'absent' | 'pending',
   getProfile: (id: string) => User | undefined
 ): User[] {
   return match.attendees

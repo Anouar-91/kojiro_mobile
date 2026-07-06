@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,9 +12,11 @@ import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useAppRefresh } from '@/hooks/useAppRefresh';
 import { fetchNews } from '@/services/news';
 import { useAuthStore } from '@/store/authStore';
+import { useFriendStore } from '@/store/friendStore';
 import { useMatchStore } from '@/store/matchStore';
 import { useProfileStore } from '@/store/profileStore';
-import { NewsItem } from '@/types';
+import { NewsItem, User } from '@/types';
+import { distanceKm, getUserPosition } from '@/utils/geo';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -22,13 +24,28 @@ export default function HomeScreen() {
   const user = useAuthStore((s) => s.user);
   const matches = useMatchStore((s) => s.matches);
   const unreadCount = useMatchStore((s) => s.unreadCount());
-  const getOtherProfiles = useProfileStore((s) => s.getOtherProfiles);
+  const getProfile = useProfileStore((s) => s.getProfile);
+  const friendIds = useFriendStore((s) => s.friendIds);
   const refresh = useAppRefresh();
   const [news, setNews] = useState<NewsItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const upcomingMatches = matches.filter((m) => m.status === 'upcoming').slice(0, 3);
-  const activeFriends = getOtherProfiles(user?.id).slice(0, 6);
+  const userPosition = useMemo(() => getUserPosition(user ?? undefined), [user]);
+  const nearbyMatches = useMemo(() => {
+    return matches
+      .filter((m) => m.status === 'upcoming')
+      .map((match) => ({
+        match,
+        distance: distanceKm(userPosition, match.location),
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 2);
+  }, [matches, userPosition]);
+  const activeFriends = friendIds
+    .map((id) => getProfile(id))
+    .filter((p): p is User => Boolean(p))
+    .slice(0, 6);
 
   useEffect(() => {
     fetchNews().then(setNews).catch(() => setNews([]));
@@ -91,17 +108,25 @@ export default function HomeScreen() {
           action="Carte"
           onAction={() => router.push('/map')}
         />
-        {upcomingMatches.slice(0, 2).map((match, i) => (
+        {nearbyMatches.map(({ match, distance }) => (
           <NearbyMatchCard
             key={match.id}
             match={match}
-            distance={1.2 + i * 0.8}
+            distance={distance}
             onPress={() => router.push(`/match/${match.id}`)}
           />
         ))}
 
-        <SectionHeader title="Amis actifs" />
-        <ActiveFriendsRow friends={activeFriends} />
+        <SectionHeader
+          title="Amis actifs"
+          action={activeFriends.length === 0 ? undefined : 'Voir tout'}
+          onAction={() => router.push('/(tabs)/community')}
+        />
+        {activeFriends.length === 0 ? (
+          <Text style={styles.emptyFriends}>Ajoute des amis depuis l'onglet Communauté</Text>
+        ) : (
+          <ActiveFriendsRow friends={activeFriends} />
+        )}
 
         <SectionHeader title="Actualités" action="Plus" onAction={() => {}} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -177,5 +202,10 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 100,
+  },
+  emptyFriends: {
+    ...Typography.body,
+    color: Colors.textMuted,
+    marginBottom: Spacing.xl,
   },
 });

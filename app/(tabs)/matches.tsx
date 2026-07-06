@@ -10,9 +10,9 @@ import { ChipGroup } from '@/components/ui/Chip';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useAppRefresh } from '@/hooks/useAppRefresh';
 import { useMatchStore } from '@/store/matchStore';
-import { MatchFormat } from '@/types';
+import { MATCH_FORMAT_PRESETS } from '@/types';
 
-type FilterType = 'all' | MatchFormat;
+type FilterType = 'all' | number;
 
 export default function MatchesScreen() {
   const router = useRouter();
@@ -50,12 +50,10 @@ export default function MatchesScreen() {
           <ChipGroup
             options={[
               { label: 'Tous', value: 'all' },
-              { label: '5v5', value: 5 },
-              { label: '7v7', value: 7 },
-              { label: '11v11', value: 11 },
+              ...MATCH_FORMAT_PRESETS.map((n) => ({ label: `${n}v${n}`, value: n })),
             ]}
             selected={filter}
-            onSelect={(v) => setFilter(v as FilterType)}
+            onSelect={(v) => setFilter(v === 'all' ? 'all' : Number(v))}
           />
         </View>
 

@@ -9,7 +9,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useProfileStore } from '@/store/profileStore';
 import { Match } from '@/types';
-import { formatShortDate, getFormatLabel } from '@/utils/formatters';
+import { formatShortDate, getMatchFormatDescription } from '@/utils/formatters';
 
 interface UpcomingMatchCardProps {
   match: Match;
@@ -27,7 +27,7 @@ export function UpcomingMatchCard({ match, onPress }: UpcomingMatchCardProps) {
   return (
     <Card onPress={onPress} style={styles.card}>
       <View style={styles.header}>
-        <Badge label={getFormatLabel(match.format)} variant="primary" />
+        <Badge label={getMatchFormatDescription(match.format, match.substitutesPerTeam)} variant="primary" />
         <Text style={styles.date}>{formatShortDate(match.date)} · {match.time}</Text>
       </View>
       <Text style={styles.title}>{match.title}</Text>
@@ -62,7 +62,7 @@ export function NearbyMatchCard({ match, distance, onPress }: NearbyMatchCardPro
       />
       <View style={styles.nearbyContent}>
         <View style={styles.nearbyHeader}>
-          <Badge label={getFormatLabel(match.format)} />
+          <Badge label={getMatchFormatDescription(match.format, match.substitutesPerTeam)} />
           <Text style={styles.distance}>{distance.toFixed(1)} km</Text>
         </View>
         <Text style={styles.nearbyTitle} numberOfLines={1}>{match.location.name}</Text>

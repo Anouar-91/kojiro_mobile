@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { mapProfileToUser, userToProfileUpdate } from '@/lib/mappers';
 import { supabase } from '@/lib/supabase';
+import { signInWithApple, signInWithGoogle } from '@/services/auth/oauth';
 import { fetchProfile, updateProfile } from '@/services/profiles';
 import { User } from '@/types';
 
@@ -80,9 +81,38 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      loginWithProvider: async (_provider) => {
-        set({ isLoading: false });
-        throw new Error('Google/Apple Sign-In disponible prochainement');
+      loginWithProvider: async (provider) => {
+        set({ isLoading: true });
+        try {
+          if (provider === 'google') {
+            await signInWithGoogle();
+          } else {
+            await signInWithApple();
+          }
+
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user) throw new Error('Session invalide après connexion sociale');
+
+          let profile = await fetchProfile(session.user.id);
+          if (!profile) {
+            const meta = session.user.user_metadata ?? {};
+            await supabase.from('profiles').upsert({
+              id: session.user.id,
+              email: session.user.email ?? '',
+              name: meta.full_name ?? meta.name ?? 'Joueur',
+              avatar: meta.avatar_url ?? meta.picture ?? '',
+            });
+            profile = await fetchProfile(session.user.id);
+          }
+
+          if (!profile) throw new Error('Profil introuvable');
+
+          set({ user: profile, isAuthenticated: true, isLoading: false });
+          return true;
+        } catch (e) {
+          set({ isLoading: false });
+          throw e;
+        }
       },
 
       register: async (email, password, name) => {

@@ -21,7 +21,7 @@ import { useAuthStore } from '@/store/authStore';
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { login, loginWithProvider, isLoading } = useAuthStore();
+  const { login, isLoading } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -38,13 +38,8 @@ export default function LoginScreen() {
     }
   };
 
-  const handleSocial = async (provider: 'google' | 'apple') => {
-    try {
-      const success = await loginWithProvider(provider);
-      if (success) router.replace('/(tabs)');
-    } catch (e) {
-      Alert.alert('Connexion sociale', e instanceof Error ? e.message : 'Bientôt disponible');
-    }
+  const handleSocial = () => {
+    Alert.alert('Bientôt disponible', 'La connexion Google et Apple sera activée prochainement.');
   };
 
   return (
@@ -87,11 +82,11 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.social}>
-          <Pressable style={styles.socialBtn} onPress={() => handleSocial('google')}>
+          <Pressable style={styles.socialBtn} onPress={handleSocial}>
             <Ionicons name="logo-google" size={22} color={Colors.text} />
             <Text style={styles.socialText}>Google</Text>
           </Pressable>
-          <Pressable style={styles.socialBtn} onPress={() => handleSocial('apple')}>
+          <Pressable style={styles.socialBtn} onPress={handleSocial}>
             <Ionicons name="logo-apple" size={22} color={Colors.text} />
             <Text style={styles.socialText}>Apple</Text>
           </Pressable>

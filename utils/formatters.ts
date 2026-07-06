@@ -46,6 +46,24 @@ export function getPositionLabel(position: string): string {
   return labels[position] ?? position;
 }
 
-export function getFormatLabel(format: number): string {
-  return `Foot à ${format}`;
+export function getFormatLabel(playersPerTeam: number): string {
+  return `${playersPerTeam}v${playersPerTeam}`;
+}
+
+export function getMaxPlayers(playersPerTeam: number, substitutesPerTeam = 0): number {
+  return (playersPerTeam + substitutesPerTeam) * 2;
+}
+
+export function getMatchFormatDescription(playersPerTeam: number, substitutesPerTeam = 0): string {
+  const base = getFormatLabel(playersPerTeam);
+  if (substitutesPerTeam <= 0) return base;
+  return `${base} (+${substitutesPerTeam} remp.)`;
+}
+
+export function clampSubstitutesPerTeam(value: number): number {
+  return Math.min(10, Math.max(0, Math.round(value)));
+}
+
+export function clampPlayersPerTeam(value: number): number {
+  return Math.min(15, Math.max(2, Math.round(value)));
 }

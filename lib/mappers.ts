@@ -30,6 +30,8 @@ export function mapProfileToUser(profile: DbProfile): User {
     xpToNextLevel: profile.xp_to_next_level,
     rating: Number(profile.rating),
     city: profile.city,
+    latitude: profile.latitude ?? undefined,
+    longitude: profile.longitude ?? undefined,
     bio: profile.bio ?? undefined,
     badges: (profile.badges ?? []).map((b) => ({
       id: b.id,
@@ -67,6 +69,8 @@ export function mapDbMatchToMatch(row: DbMatch): Match {
     id: row.id,
     title: row.title,
     format: row.format as MatchFormat,
+    substitutesPerTeam: row.substitutes_per_team ?? 0,
+    visibility: (row.visibility ?? 'public') as Match['visibility'],
     date: row.date,
     time: row.time.slice(0, 5),
     location: {
@@ -94,6 +98,8 @@ export function userToProfileUpdate(updates: Partial<User>): Record<string, unkn
   if (updates.position !== undefined) mapped.position = updates.position;
   if (updates.foot !== undefined) mapped.foot = updates.foot;
   if (updates.city !== undefined) mapped.city = updates.city;
+  if (updates.latitude !== undefined) mapped.latitude = updates.latitude;
+  if (updates.longitude !== undefined) mapped.longitude = updates.longitude;
   if (updates.bio !== undefined) mapped.bio = updates.bio;
   if (updates.level !== undefined) mapped.level = updates.level;
   if (updates.xp !== undefined) mapped.xp = updates.xp;

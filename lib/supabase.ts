@@ -42,6 +42,8 @@ export type DbProfile = {
   rating: number;
   city: string;
   bio: string | null;
+  latitude: number | null;
+  longitude: number | null;
   stats: Record<string, number>;
   badges: Array<{ id: string; name: string; icon: string; description: string; earned_at: string }>;
   created_at: string;
@@ -51,6 +53,7 @@ export type DbMatch = {
   id: string;
   title: string;
   format: number;
+  substitutes_per_team: number;
   date: string;
   time: string;
   location_name: string;
@@ -61,6 +64,7 @@ export type DbMatch = {
   description: string | null;
   organizer_id: string;
   max_players: number;
+  visibility: string;
   status: string;
   image_url: string | null;
   tournament_id: string | null;

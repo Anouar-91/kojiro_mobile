@@ -1,21 +1,42 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useMatchStore } from '@/store/matchStore';
+import { Notification } from '@/types';
 import { formatRelativeTime } from '@/utils/formatters';
 
 const NOTIF_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   match_invite: 'mail-open-outline',
+  friend_request: 'person-add-outline',
   match_reminder: 'alarm-outline',
   team_assigned: 'people-outline',
   social: 'heart-outline',
   tournament: 'trophy-outline',
 };
 
+function getNotificationRoute(notif: Notification): string | null {
+  const matchId = notif.data?.matchId;
+  if (matchId && (notif.type === 'match_invite' || notif.type === 'match_reminder' || notif.type === 'team_assigned')) {
+    return `/match/${matchId}`;
+  }
+  if (notif.type === 'tournament') return '/tournament';
+  if (notif.type === 'social') return '/social/feed';
+  if (notif.type === 'friend_request') return '/(tabs)/community';
+  return null;
+}
+
 export default function NotificationsScreen() {
+  const router = useRouter();
   const notifications = useMatchStore((s) => s.notifications);
   const markRead = useMatchStore((s) => s.markNotificationRead);
+
+  const handlePress = async (notif: Notification) => {
+    if (!notif.read) await markRead(notif.id);
+    const route = getNotificationRoute(notif);
+    if (route) router.push(route as `/match/${string}`);
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -26,7 +47,7 @@ export default function NotificationsScreen() {
           <Pressable
             key={notif.id}
             style={[styles.item, !notif.read && styles.unread]}
-            onPress={() => markRead(notif.id)}
+            onPress={() => handlePress(notif)}
           >
             <View style={[styles.iconWrap, !notif.read && styles.iconWrapUnread]}>
               <Ionicons

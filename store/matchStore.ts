@@ -7,11 +7,12 @@ import {
 } from '@/services/notifications';
 import { createMatch as createMatchApi, fetchMatches, upsertAttendance } from '@/services/matches';
 import { createNotification } from '@/services/notifications';
-import { AttendanceStatus, Match, MatchFormat, Notification } from '@/types';
+import { AttendanceStatus, Match, MatchFormat, MatchVisibility, Notification } from '@/types';
 
 interface CreateMatchData {
   title: string;
   format: MatchFormat;
+  substitutesPerTeam?: number;
   date: string;
   time: string;
   locationName: string;
@@ -20,6 +21,7 @@ interface CreateMatchData {
   longitude: number;
   pricePerPlayer: number;
   description?: string;
+  visibility?: MatchVisibility;
 }
 
 interface MatchState {
@@ -28,7 +30,7 @@ interface MatchState {
   selectedMatchId: string | null;
   isLoading: boolean;
   error: string | null;
-  fetchMatches: () => Promise<void>;
+  fetchMatches: (userId?: string) => Promise<void>;
   fetchNotifications: (userId: string) => Promise<void>;
   getMatch: (id: string) => Match | undefined;
   createMatch: (data: CreateMatchData, organizerId: string) => Promise<Match>;
@@ -45,10 +47,10 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  fetchMatches: async () => {
+  fetchMatches: async (userId) => {
     set({ isLoading: true, error: null });
     try {
-      const matches = await fetchMatches();
+      const matches = await fetchMatches(userId);
       set({ matches, isLoading: false });
     } catch (e) {
       set({

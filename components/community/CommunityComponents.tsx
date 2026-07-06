@@ -46,10 +46,20 @@ interface PlayerListItemProps {
   rank?: number;
   score?: number;
   distance?: string;
+  friendState?: 'none' | 'friends' | 'pending_sent' | 'pending_received';
   onAdd?: () => void;
+  onAccept?: () => void;
 }
 
-export function PlayerListItem({ user, rank, score, distance, onAdd }: PlayerListItemProps) {
+export function PlayerListItem({
+  user,
+  rank,
+  score,
+  distance,
+  friendState = 'none',
+  onAdd,
+  onAccept,
+}: PlayerListItemProps) {
   return (
     <View style={styles.listItem}>
       {rank !== undefined && <Text style={styles.rank}>{rank}</Text>}
@@ -63,7 +73,22 @@ export function PlayerListItem({ user, rank, score, distance, onAdd }: PlayerLis
         </View>
       </View>
       {score !== undefined && <Text style={styles.score}>{score} XP</Text>}
-      {onAdd && (
+      {friendState === 'friends' && (
+        <View style={styles.friendBadge}>
+          <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
+        </View>
+      )}
+      {friendState === 'pending_sent' && (
+        <View style={styles.friendBadge}>
+          <Ionicons name="time-outline" size={18} color={Colors.textMuted} />
+        </View>
+      )}
+      {friendState === 'pending_received' && onAccept && (
+        <Pressable onPress={onAccept} style={styles.acceptBtn}>
+          <Ionicons name="checkmark" size={18} color={Colors.background} />
+        </Pressable>
+      )}
+      {friendState === 'none' && onAdd && (
         <Pressable onPress={onAdd} style={styles.addBtn}>
           <Ionicons name="person-add" size={18} color={Colors.primary} />
         </Pressable>
@@ -189,6 +214,20 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: Colors.primaryMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  friendBadge: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  acceptBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -3,15 +3,17 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 
+import { Badge } from '@/components/ui/Badge';
 import { AttendanceActions, AttendanceSection } from '@/components/match/PlayerComponents';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
+import { useFriendStore } from '@/store/friendStore';
 import { useMatchStore } from '@/store/matchStore';
 import { getUsersByAttendance, useProfileStore } from '@/store/profileStore';
 import { AttendanceStatus } from '@/types';
-import { formatMatchDate, formatPrice, getFormatLabel } from '@/utils/formatters';
+import { formatMatchDate, formatPrice, getMatchFormatDescription } from '@/utils/formatters';
 
 export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -20,6 +22,7 @@ export default function MatchDetailScreen() {
   const match = useMatchStore((s) => s.getMatch(id ?? ''));
   const updateAttendance = useMatchStore((s) => s.updateAttendance);
   const getProfile = useProfileStore((s) => s.getProfile);
+  const isFriend = useFriendStore((s) => s.isFriend);
 
   if (!match) {
     return (
@@ -44,6 +47,15 @@ export default function MatchDetailScreen() {
     }
   };
 
+  const isOrganizer = user?.id === match.organizerId;
+  const isCompleted = match.status === 'completed';
+  const isFriendsOnly = match.visibility === 'friends_only';
+  const canJoin =
+    !isFriendsOnly ||
+    isOrganizer ||
+    (user && isFriend(match.organizerId)) ||
+    match.attendees.some((a) => a.userId === user?.id);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {match.imageUrl && (
@@ -51,7 +63,12 @@ export default function MatchDetailScreen() {
       )}
 
       <View style={styles.header}>
-        <Text style={styles.format}>{getFormatLabel(match.format)}</Text>
+        <View style={styles.formatRow}>
+          <Text style={styles.format}>{getMatchFormatDescription(match.format, match.substitutesPerTeam)}</Text>
+          {isFriendsOnly && <Badge label="Entre amis" variant="secondary" />}
+          {isCompleted && <Badge label="Terminé" variant="success" />}
+          {match.status === 'live' && <Badge label="En cours" variant="primary" />}
+        </View>
         <Text style={styles.title}>{match.title}</Text>
         <Text style={styles.date}>{formatMatchDate(match.date, match.time)}</Text>
 
@@ -77,17 +94,26 @@ export default function MatchDetailScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Ma présence</Text>
-        <AttendanceActions currentStatus={myAttendance} onStatusChange={handleStatusChange} />
-        <ProgressBar
-          progress={presentUsers.length / match.maxPlayers}
-          label={`${presentUsers.length}/${match.maxPlayers} confirmés`}
-          showLabel
-        />
+        {!canJoin && !isOrganizer ? (
+          <Text style={styles.restricted}>
+            Match réservé aux amis de l'organisateur. Ajoute-le en ami pour participer.
+          </Text>
+        ) : (
+          <>
+            <AttendanceActions currentStatus={myAttendance} onStatusChange={handleStatusChange} />
+            <ProgressBar
+              progress={presentUsers.length / match.maxPlayers}
+              label={`${presentUsers.length}/${match.maxPlayers} confirmés`}
+              showLabel
+            />
+          </>
+        )}
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Participants</Text>
         <AttendanceSection title="Présents" users={presentUsers} statusColor={Colors.success} />
+        <AttendanceSection title="En attente" users={getUsersByAttendance(match, 'pending', getProfile)} statusColor={Colors.textMuted} />
         <AttendanceSection title="Peut-être" users={maybeUsers} statusColor={Colors.warning} />
         <AttendanceSection title="Absents" users={absentUsers} statusColor={Colors.error} />
       </View>
@@ -100,26 +126,40 @@ export default function MatchDetailScreen() {
       )}
 
       <View style={styles.actions}>
-        <Button
-          title="Composer les équipes"
-          onPress={() => router.push({ pathname: '/match/teams', params: { id: match.id } })}
-          icon="shuffle-outline"
-          fullWidth
-        />
-        <Button
-          title="Chat du match"
-          onPress={() => router.push({ pathname: '/match/chat', params: { id: match.id } })}
-          variant="secondary"
-          icon="chatbubbles-outline"
-          fullWidth
-        />
-        <Button
-          title="Inviter des joueurs"
-          onPress={() => {}}
-          variant="outline"
-          icon="person-add-outline"
-          fullWidth
-        />
+        {isOrganizer && !isCompleted && (
+          <Button
+            title="Terminer le match"
+            onPress={() => router.push({ pathname: '/match/complete', params: { id: match.id } })}
+            icon="flag-outline"
+            fullWidth
+          />
+        )}
+        {!isCompleted && (
+          <>
+            <Button
+              title="Composer les équipes"
+              onPress={() => router.push({ pathname: '/match/teams', params: { id: match.id } })}
+              icon="shuffle-outline"
+              fullWidth
+            />
+            <Button
+              title="Chat du match"
+              onPress={() => router.push({ pathname: '/match/chat', params: { id: match.id } })}
+              variant="secondary"
+              icon="chatbubbles-outline"
+              fullWidth
+            />
+          </>
+        )}
+        {!isCompleted && (
+          <Button
+            title="Inviter des joueurs"
+            onPress={() => router.push({ pathname: '/match/invite', params: { id: match.id } })}
+            variant="outline"
+            icon="person-add-outline"
+            fullWidth
+          />
+        )}
       </View>
     </ScrollView>
   );
@@ -133,6 +173,7 @@ const styles = StyleSheet.create({
   hero: { width: '100%', height: 180 },
   header: { padding: Spacing.xxl },
   format: { ...Typography.caption, color: Colors.primary, fontWeight: '700', textTransform: 'uppercase' },
+  formatRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   title: { ...Typography.h2, color: Colors.text, marginTop: Spacing.xs },
   date: { ...Typography.body, color: Colors.textSecondary, marginTop: Spacing.xs },
   locationRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.lg, alignItems: 'flex-start' },
@@ -144,5 +185,6 @@ const styles = StyleSheet.create({
   section: { paddingHorizontal: Spacing.xxl, marginBottom: Spacing.xl },
   sectionTitle: { ...Typography.h3, color: Colors.text, marginBottom: Spacing.md },
   description: { ...Typography.body, color: Colors.textSecondary, lineHeight: 22 },
+  restricted: { ...Typography.body, color: Colors.textMuted, fontStyle: 'italic' },
   actions: { paddingHorizontal: Spacing.xxl, gap: Spacing.md },
 });

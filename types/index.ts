@@ -1,8 +1,13 @@
 export type Position = 'GK' | 'DEF' | 'MID' | 'FWD';
 export type Foot = 'Gauche' | 'Droit' | 'Ambidextre';
 export type AttendanceStatus = 'present' | 'absent' | 'maybe' | 'pending';
-export type MatchFormat = 5 | 7 | 11;
+/** Nombre de joueurs par équipe (ex. 9 = 9v9) */
+export type MatchFormat = number;
+
+export const MATCH_FORMAT_PRESETS = [5, 6, 7, 8, 9, 11] as const;
+export const SUBSTITUTE_PRESETS = [0, 1, 2, 3, 5] as const;
 export type MatchStatus = 'upcoming' | 'live' | 'completed' | 'cancelled';
+export type MatchVisibility = 'public' | 'friends_only';
 
 export interface User {
   id: string;
@@ -16,6 +21,8 @@ export interface User {
   xpToNextLevel: number;
   rating: number;
   city: string;
+  latitude?: number;
+  longitude?: number;
   bio?: string;
   badges: Badge[];
   stats: PlayerStats;
@@ -49,6 +56,8 @@ export interface Match {
   id: string;
   title: string;
   format: MatchFormat;
+  substitutesPerTeam: number;
+  visibility: MatchVisibility;
   date: string;
   time: string;
   location: Location;
@@ -128,7 +137,7 @@ export interface LeaderboardEntry {
 
 export interface Notification {
   id: string;
-  type: 'match_invite' | 'match_reminder' | 'team_assigned' | 'social' | 'tournament';
+  type: 'match_invite' | 'match_reminder' | 'team_assigned' | 'social' | 'tournament' | 'friend_request';
   title: string;
   body: string;
   read: boolean;
@@ -156,4 +165,14 @@ export interface MatchHistory {
   goals: number;
   assists: number;
   mvp: boolean;
+}
+
+export type FriendRequestStatus = 'pending' | 'accepted' | 'declined';
+
+export interface FriendRequest {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  status: FriendRequestStatus;
+  createdAt: string;
 }

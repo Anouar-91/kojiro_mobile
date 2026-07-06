@@ -61,7 +61,8 @@
           "icon": "./assets/images/icon.png",
           "color": "#39FF14"
         }
-      ]
+      ],
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true

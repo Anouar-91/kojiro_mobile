@@ -25,8 +25,28 @@ export async function updateProfile(userId: string, updates: Record<string, unkn
   return mapProfileToUser(data);
 }
 
-export async function fetchAllProfiles(): Promise<User[]> {
-  const { data, error } = await supabase.from('profiles').select('*').order('name');
+export async function fetchAllProfiles(limit = 100): Promise<User[]> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('name')
+    .limit(limit);
+  if (error || !data) return [];
+  return data.map(mapProfileToUser);
+}
+
+export async function searchProfiles(query: string, limit = 30): Promise<User[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  const pattern = `%${q.replace(/[%_]/g, '')}%`;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .or(`name.ilike.${pattern},email.ilike.${pattern},city.ilike.${pattern}`)
+    .order('name')
+    .limit(limit);
+
   if (error || !data) return [];
   return data.map(mapProfileToUser);
 }
