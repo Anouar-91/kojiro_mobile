@@ -5,6 +5,7 @@ import { ImageBackground, ScrollView, StyleSheet, Text, View } from 'react-nativ
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/Button';
+import { KojiroLogo } from '@/components/ui/KojiroLogo';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 
 const FEATURES = [
@@ -30,10 +31,7 @@ export default function WelcomeScreen() {
           style={styles.heroGradient}
         />
         <View style={styles.logoWrap}>
-          <View style={styles.logoIcon}>
-            <Text style={styles.logoEmoji}>⚽</Text>
-          </View>
-          <Text style={styles.logoText}>KOJIRO</Text>
+          <KojiroLogo size={120} showWordmark />
           <Text style={styles.tagline}>
             Joue. Progresse. Connecte-toi.{'\n'}Vis le foot.
           </Text>
@@ -83,23 +81,6 @@ const styles = StyleSheet.create({
   logoWrap: {
     padding: Spacing.xxl,
     alignItems: 'center',
-  },
-  logoIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.md,
-  },
-  logoEmoji: {
-    fontSize: 32,
-  },
-  logoText: {
-    ...Typography.hero,
-    color: Colors.text,
-    letterSpacing: 4,
   },
   tagline: {
     ...Typography.body,

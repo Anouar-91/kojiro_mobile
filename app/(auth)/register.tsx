@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { KojiroLogo } from '@/components/ui/KojiroLogo';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 
@@ -49,6 +50,7 @@ export default function RegisterScreen() {
       </Pressable>
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <KojiroLogo size={96} style={styles.logo} />
         <Text style={styles.title}>Rejoins Kojiro</Text>
         <Text style={styles.subtitle}>Crée ton profil de joueur en quelques secondes</Text>
 
@@ -89,6 +91,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   back: { padding: Spacing.lg },
   scroll: { padding: Spacing.xxl, paddingTop: Spacing.lg },
+  logo: { alignSelf: 'center', marginBottom: Spacing.xl },
   title: { ...Typography.h1, color: Colors.text, marginBottom: Spacing.xs },
   subtitle: { ...Typography.body, color: Colors.textSecondary, marginBottom: Spacing.xxxl },
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: Spacing.xxl, gap: Spacing.md },

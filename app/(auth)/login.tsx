@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { KojiroLogo } from '@/components/ui/KojiroLogo';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 
@@ -52,6 +53,7 @@ export default function LoginScreen() {
       </Pressable>
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <KojiroLogo size={96} style={styles.logo} />
         <Text style={styles.title}>Bon retour !</Text>
         <Text style={styles.subtitle}>Connecte-toi pour retrouver tes matchs</Text>
 
@@ -113,6 +115,10 @@ const styles = StyleSheet.create({
   scroll: {
     padding: Spacing.xxl,
     paddingTop: Spacing.lg,
+  },
+  logo: {
+    alignSelf: 'center',
+    marginBottom: Spacing.xl,
   },
   title: {
     ...Typography.h1,
