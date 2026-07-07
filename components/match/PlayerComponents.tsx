@@ -21,10 +21,14 @@ export function PlayerRow({ user, skillScore, showSkill = false, rightElement }:
 
   return (
     <View style={styles.row}>
-      <Avatar uri={user.avatar} size={40} name={user.name} />
+      <Avatar uri={user.avatar} size={36} name={user.name} />
       <View style={styles.info}>
-        <Text style={styles.name}>{user.name}</Text>
-        <Text style={styles.meta}>{getPositionLabel(user.position)} · Niv. {user.level}</Text>
+        <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
+          {user.name}
+        </Text>
+        <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
+          {getPositionLabel(user.position)} · Niv. {user.level}
+        </Text>
       </View>
       {showSkill && (
         <View style={styles.skillBadge}>
@@ -45,13 +49,19 @@ interface TeamColumnProps {
 
 export function TeamColumn({ title, players, averageLevel, color = Colors.primary }: TeamColumnProps) {
   return (
-    <View style={styles.column}>
-      <View style={styles.columnHeader}>
+    <View style={[styles.column, { borderColor: `${color}40` }]}>
+      <View style={[styles.columnHeader, { borderBottomColor: `${color}30` }]}>
         <Text style={[styles.columnTitle, { color }]}>{title}</Text>
-        <Badge label={`Moy. ${averageLevel}`} variant="secondary" />
+        <View style={styles.columnStats}>
+          <Text style={styles.columnCount}>{players.length} joueur{players.length > 1 ? 's' : ''}</Text>
+          <Badge label={`Moy. ${averageLevel}`} variant="secondary" />
+        </View>
       </View>
-      {players.map((player) => (
-        <PlayerRow key={player.id} user={player} showSkill />
+      {players.map((player, index) => (
+        <View key={player.id}>
+          {index > 0 && <View style={styles.playerDivider} />}
+          <PlayerRow user={player} showSkill />
+        </View>
       ))}
     </View>
   );
@@ -130,25 +140,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing.sm,
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   info: {
     flex: 1,
+    minWidth: 0,
   },
   name: {
     ...Typography.bodyBold,
     color: Colors.text,
-    fontSize: 14,
+    fontSize: 15,
   },
   meta: {
-    ...Typography.small,
-    color: Colors.textMuted,
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   skillBadge: {
+    flexShrink: 0,
     backgroundColor: Colors.primaryMuted,
+    minWidth: 40,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 8,
+    alignItems: 'center',
   },
   skillText: {
     ...Typography.caption,
@@ -156,25 +171,37 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   column: {
-    flex: 1,
     backgroundColor: Colors.surfaceElevated,
     borderRadius: 12,
-    padding: Spacing.md,
-    borderWidth: 1,
+    padding: Spacing.lg,
+    borderWidth: 1.5,
     borderColor: Colors.border,
   },
   columnHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
-    paddingBottom: Spacing.sm,
+    marginBottom: Spacing.sm,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   columnTitle: {
-    ...Typography.bodyBold,
-    fontSize: 15,
+    ...Typography.h3,
+    fontSize: 17,
+  },
+  columnStats: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  columnCount: {
+    ...Typography.small,
+    color: Colors.textMuted,
+  },
+  playerDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: 2,
   },
   attendanceSection: {
     marginBottom: Spacing.lg,

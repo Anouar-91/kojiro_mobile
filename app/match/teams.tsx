@@ -53,15 +53,17 @@ export default function TeamsScreen() {
         </Text>
       ) : (
         <>
-          <View style={styles.teamsRow}>
+          <View style={styles.teamsContainer}>
             <TeamColumn
               title="Équipe A"
               players={teams.teamA.map((p) => p.user)}
               averageLevel={teams.averageA}
               color={Colors.primary}
             />
-            <View style={styles.vs}>
+            <View style={styles.vsDivider}>
+              <View style={styles.vsLine} />
               <Text style={styles.vsText}>VS</Text>
+              <View style={styles.vsLine} />
             </View>
             <TeamColumn
               title="Équipe B"
@@ -90,7 +92,7 @@ export default function TeamsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: Spacing.xxl },
+  content: { padding: Spacing.xxl, paddingBottom: Spacing.xxxl * 2 },
   notFound: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   notFoundText: { color: Colors.textMuted },
   empty: { ...Typography.body, color: Colors.textMuted, textAlign: 'center', marginBottom: Spacing.xl },
@@ -108,9 +110,10 @@ const styles = StyleSheet.create({
   aiInfo: { flex: 1 },
   aiTitle: { ...Typography.bodyBold, color: Colors.primary },
   aiDesc: { ...Typography.caption, color: Colors.textSecondary, marginTop: 4 },
-  teamsRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
-  vs: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
-  vsText: { ...Typography.caption, color: Colors.textMuted, fontWeight: '800' },
+  teamsContainer: { gap: Spacing.lg, marginBottom: Spacing.lg },
+  vsDivider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  vsLine: { flex: 1, height: 1, backgroundColor: Colors.border },
+  vsText: { ...Typography.caption, color: Colors.textMuted, fontWeight: '800', letterSpacing: 1 },
   balanceInfo: { alignItems: 'center', marginBottom: Spacing.xl },
   balanceText: { ...Typography.caption, color: Colors.textSecondary },
   actions: { gap: Spacing.md },
