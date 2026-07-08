@@ -5,6 +5,7 @@ import { useState } from 'react';
 import {
   Alert,
   Image,
+  InteractionManager,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -32,34 +33,48 @@ export default function CreatePostScreen() {
   const [isVideo, setIsVideo] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const pickerOptions: ImagePicker.ImagePickerOptions = {
+    mediaTypes: ['images', 'videos'],
+    quality: 0.8,
+    videoMaxDuration: 30,
+    ...(Platform.OS === 'ios' && {
+      presentationStyle: ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN,
+      preferredAssetRepresentationMode:
+        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+    }),
+  };
+
   const pickMedia = async (fromCamera: boolean) => {
-    const permission = fromCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    try {
+      const permission = fromCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (!permission.granted) {
-      Alert.alert('Permission refusée', 'Autorise l\'accès à la caméra ou à la galerie.');
-      return;
+      if (!permission.granted) {
+        Alert.alert('Permission refusée', 'Autorise l\'accès à la caméra ou à la galerie.');
+        return;
+      }
+
+      await new Promise<void>((resolve) => {
+        InteractionManager.runAfterInteractions(() => resolve());
+      });
+
+      const result = fromCamera
+        ? await ImagePicker.launchCameraAsync(pickerOptions)
+        : await ImagePicker.launchImageLibraryAsync(pickerOptions);
+
+      if (result.canceled || !result.assets[0]) return;
+
+      const asset = result.assets[0];
+      setMediaUri(asset.uri);
+      setMediaType(asset.mimeType ?? (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'));
+      setIsVideo(asset.type === 'video');
+    } catch (e) {
+      Alert.alert(
+        'Erreur',
+        e instanceof Error ? e.message : 'Impossible d\'ouvrir la galerie ou la caméra.'
+      );
     }
-
-    const result = fromCamera
-      ? await ImagePicker.launchCameraAsync({
-          mediaTypes: ['images', 'videos'],
-          quality: 0.8,
-          videoMaxDuration: 30,
-        })
-      : await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images', 'videos'],
-          quality: 0.8,
-          videoMaxDuration: 30,
-        });
-
-    if (result.canceled || !result.assets[0]) return;
-
-    const asset = result.assets[0];
-    setMediaUri(asset.uri);
-    setMediaType(asset.mimeType ?? (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'));
-    setIsVideo(asset.type === 'video');
   };
 
   const handlePublish = async () => {

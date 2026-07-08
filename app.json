@@ -14,6 +14,7 @@
         "NSLocationWhenInUseUsageDescription": "Kojiro utilise votre position pour trouver des matchs à proximité.",
         "NSCameraUsageDescription": "Kojiro utilise la caméra pour publier des photos et vidéos.",
         "NSPhotoLibraryUsageDescription": "Kojiro accède à vos photos pour votre profil et les highlights.",
+        "NSMicrophoneUsageDescription": "Kojiro utilise le micro pour enregistrer des vidéos.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -30,6 +31,9 @@
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "RECORD_AUDIO",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
@@ -56,6 +60,14 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Kojiro utilise votre position pour trouver des matchs à proximité."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Kojiro accède à vos photos pour votre profil et les highlights.",
+          "cameraPermission": "Kojiro utilise la caméra pour publier des photos et vidéos.",
+          "microphonePermission": "Kojiro utilise le micro pour enregistrer des vidéos."
         }
       ],
       [

@@ -1,12 +1,13 @@
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { NearbyMatchCard } from '@/components/home/MatchCards';
 import { MatchMapView } from '@/components/map/MatchMapView';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useCurrentLocation } from '@/hooks/useCurrentLocation';
+import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { Match } from '@/types';
 import { distanceKm } from '@/utils/geo';
@@ -18,42 +19,63 @@ interface MatchWithDistance {
 
 export default function MapScreen() {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
   const allMatches = useMatchStore((s) => s.matches);
-  const { position: userPosition, loading: locating, refresh: refreshLocation } = useCurrentLocation();
+  const { position: userPosition, loading: locating, refresh: refreshLocation } = useCurrentLocation(
+    user ?? undefined
+  );
 
-  const matchesWithDistance = useMemo<MatchWithDistance[]>(() => {
-    return allMatches
-      .filter((m) => m.status === 'upcoming')
+  const upcomingMatches = useMemo(
+    () => allMatches.filter((m) => m.status === 'upcoming'),
+    [allMatches]
+  );
+
+  const [visibleMatchIds, setVisibleMatchIds] = useState<string[] | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const handleViewportChange = useCallback((ids: string[]) => {
+    setVisibleMatchIds(ids);
+  }, []);
+
+  const matchesInViewport = useMemo<MatchWithDistance[]>(() => {
+    if (visibleMatchIds === null) return [];
+
+    return upcomingMatches
+      .filter((m) => visibleMatchIds.includes(m.id))
       .map((match) => ({
         match,
         distance: distanceKm(userPosition, match.location),
       }))
       .sort((a, b) => a.distance - b.distance);
-  }, [allMatches, userPosition]);
-
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  }, [upcomingMatches, visibleMatchIds, userPosition]);
 
   const displayed = useMemo(() => {
     if (selectedId) {
-      const found = matchesWithDistance.find((m) => m.match.id === selectedId);
-      return found ? [found] : matchesWithDistance;
+      const found = matchesInViewport.find((m) => m.match.id === selectedId);
+      if (found) return [found];
+      const selected = upcomingMatches.find((m) => m.id === selectedId);
+      if (selected) {
+        return [{ match: selected, distance: distanceKm(userPosition, selected.location) }];
+      }
+      return matchesInViewport;
     }
-    return matchesWithDistance;
-  }, [matchesWithDistance, selectedId]);
+    return matchesInViewport;
+  }, [matchesInViewport, selectedId, upcomingMatches, userPosition]);
 
   return (
     <View style={styles.container}>
       <MatchMapView
-        matches={matchesWithDistance.map((m) => m.match)}
+        matches={upcomingMatches}
         selectedId={selectedId}
         center={userPosition}
         onSelectMatch={setSelectedId}
+        onViewportChange={handleViewportChange}
       />
 
       <View style={styles.listOverlay}>
         <View style={styles.listHeader}>
           <Text style={styles.listTitle}>
-            {selectedId ? 'Match sélectionné' : 'Matchs à proximité'}
+            {selectedId ? 'Match sélectionné' : 'Dans cette zone'}
           </Text>
           <Pressable onPress={refreshLocation} style={styles.locateBtn} disabled={locating}>
             {locating ? (
@@ -63,8 +85,10 @@ export default function MapScreen() {
             )}
           </Pressable>
         </View>
-        {matchesWithDistance.length === 0 ? (
-          <Text style={styles.empty}>Aucun match à venir avec une position connue.</Text>
+        {displayed.length === 0 ? (
+          <Text style={styles.empty}>
+            Aucun match à venir dans cette zone. Déplace ou zoome la carte pour explorer.
+          </Text>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {displayed.map(({ match, distance }) => (
@@ -80,7 +104,7 @@ export default function MapScreen() {
         )}
         {selectedId && (
           <Pressable onPress={() => setSelectedId(null)}>
-            <Text style={styles.resetHint}>Voir tous les matchs</Text>
+            <Text style={styles.resetHint}>Voir toute la zone</Text>
           </Pressable>
         )}
       </View>

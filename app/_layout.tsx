@@ -130,7 +130,7 @@ export default function RootLayout() {
             <Stack.Screen name="rankings/index" options={{ title: 'Classement amis' }} />
             <Stack.Screen name="tournament/index" options={{ title: 'Tournois' }} />
             <Stack.Screen name="social/feed" options={{ title: 'Highlights' }} />
-            <Stack.Screen name="social/create-post" options={{ title: 'Publier', presentation: 'modal' }} />
+            <Stack.Screen name="social/create-post" options={{ title: 'Publier' }} />
             <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
             <Stack.Screen name="notifications/index" options={{ title: 'Notifications' }} />
           </Stack>

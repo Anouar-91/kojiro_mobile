@@ -4,6 +4,9 @@ export type GeoCoords = { latitude: number; longitude: number };
 
 const EARTH_RADIUS_KM = 6371;
 
+/** Rayon max pour les matchs « à proximité » (accueil + carte). */
+export const NEARBY_MATCH_RADIUS_KM = 10;
+
 export function distanceKm(
   from: { latitude: number; longitude: number },
   to: { latitude: number; longitude: number }
@@ -19,6 +22,21 @@ export function distanceKm(
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return EARTH_RADIUS_KM * c;
+}
+
+export function sortByProximity<T>(
+  items: T[],
+  userPosition: GeoCoords,
+  getCoords: (item: T) => GeoCoords,
+  maxRadiusKm = NEARBY_MATCH_RADIUS_KM
+): { item: T; distance: number }[] {
+  return items
+    .map((item) => ({
+      item,
+      distance: distanceKm(userPosition, getCoords(item)),
+    }))
+    .filter(({ distance }) => distance <= maxRadiusKm)
+    .sort((a, b) => a.distance - b.distance);
 }
 
 export function getUserPosition(user?: {

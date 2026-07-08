@@ -17,7 +17,7 @@ import { useFriendStore } from '@/store/friendStore';
 import { useMatchStore } from '@/store/matchStore';
 import { useProfileStore } from '@/store/profileStore';
 import { NewsItem, User } from '@/types';
-import { distanceKm } from '@/utils/geo';
+import { NEARBY_MATCH_RADIUS_KM, sortByProximity } from '@/utils/geo';
 import { isUserRegisteredForMatch } from '@/utils/matchAttendance';
 
 export default function HomeScreen() {
@@ -41,13 +41,12 @@ export default function HomeScreen() {
   );
   const { position: userPosition } = useCurrentLocation(user ?? undefined);
   const nearbyMatches = useMemo(() => {
-    return matches
-      .filter((m) => m.status === 'upcoming')
-      .map((match) => ({
-        match,
-        distance: distanceKm(userPosition, match.location),
-      }))
-      .sort((a, b) => a.distance - b.distance)
+    return sortByProximity(
+      matches.filter((m) => m.status === 'upcoming'),
+      userPosition,
+      (m) => m.location
+    )
+      .map(({ item, distance }) => ({ match: item, distance }))
       .slice(0, 2);
   }, [matches, userPosition]);
   const activeFriends = friendIds
@@ -122,14 +121,20 @@ export default function HomeScreen() {
           action="Carte"
           onAction={() => router.push('/map')}
         />
-        {nearbyMatches.map(({ match, distance }) => (
-          <NearbyMatchCard
-            key={match.id}
-            match={match}
-            distance={distance}
-            onPress={() => router.push(`/match/${match.id}`)}
-          />
-        ))}
+        {nearbyMatches.length === 0 ? (
+          <Text style={styles.emptySection}>
+            Aucun match à moins de {NEARBY_MATCH_RADIUS_KM} km. Crée-en un ou élargis ta zone sur la carte.
+          </Text>
+        ) : (
+          nearbyMatches.map(({ match, distance }) => (
+            <NearbyMatchCard
+              key={match.id}
+              match={match}
+              distance={distance}
+              onPress={() => router.push(`/match/${match.id}`)}
+            />
+          ))
+        )}
 
         <SectionHeader
           title="Amis actifs"
