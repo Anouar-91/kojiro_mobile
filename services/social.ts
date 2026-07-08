@@ -1,5 +1,16 @@
+import type { RealtimeChannel } from '@supabase/supabase-js';
+
 import { supabase } from '@/lib/supabase';
 import { SocialPost } from '@/types';
+
+type SocialPostsListener = () => void;
+
+type SocialPostsChannel = {
+  channel: RealtimeChannel;
+  listeners: Set<SocialPostsListener>;
+};
+
+let socialPostsChannel: SocialPostsChannel | null = null;
 
 export async function fetchSocialPosts(limit = 20): Promise<SocialPost[]> {
   const { data, error } = await supabase
@@ -59,18 +70,33 @@ export async function likePost(postId: string): Promise<void> {
     .eq('id', postId);
 }
 
-export function subscribeToSocialPosts(onInsert: () => void): () => void {
-  const channel = supabase
-    .channel('realtime:social_posts')
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'social_posts' },
-      () => onInsert()
-    )
-    .subscribe();
+export function subscribeToSocialPosts(onInsert: SocialPostsListener): () => void {
+  if (!socialPostsChannel) {
+    const listeners = new Set<SocialPostsListener>();
+    const channel = supabase
+      .channel('realtime:social_posts')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'social_posts' },
+        () => {
+          listeners.forEach((listener) => listener());
+        }
+      )
+      .subscribe();
+
+    socialPostsChannel = { channel, listeners };
+  }
+
+  socialPostsChannel.listeners.add(onInsert);
 
   return () => {
-    supabase.removeChannel(channel);
+    if (!socialPostsChannel) return;
+
+    socialPostsChannel.listeners.delete(onInsert);
+    if (socialPostsChannel.listeners.size === 0) {
+      supabase.removeChannel(socialPostsChannel.channel);
+      socialPostsChannel = null;
+    }
   };
 }
 

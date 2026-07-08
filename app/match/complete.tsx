@@ -35,6 +35,7 @@ function initPlayerStats(players: User[], teamMap: Map<string, 'A' | 'B'>): Play
     goals: 0,
     assists: 0,
     rating: 4,
+    fairPlay: 4,
     mvp: false,
   }));
 }
@@ -237,7 +238,7 @@ export default function CompleteMatchScreen() {
                 />
               </View>
               <View style={styles.statField}>
-                <Text style={styles.statLabel}>Note /5</Text>
+                <Text style={styles.statLabel}>Niveau /5</Text>
                 <TextInput
                   style={styles.statInput}
                   value={String(p.rating)}
@@ -255,6 +256,26 @@ export default function CompleteMatchScreen() {
               >
                 <Text style={[styles.mvpText, p.mvp && styles.mvpTextActive]}>MVP</Text>
               </Pressable>
+            </View>
+
+            <View style={styles.fairPlayBlock}>
+              <Text style={styles.fairPlayLabel}>Fair-play /5</Text>
+              <Text style={styles.fairPlayHint}>
+                Respect, esprit d'équipe, ponctualité et attitude sportive
+              </Text>
+              <View style={styles.fairPlayRow}>
+                {([1, 2, 3, 4, 5] as const).map((n) => (
+                  <Pressable
+                    key={n}
+                    style={[styles.fairPlayBtn, p.fairPlay === n && styles.fairPlayBtnActive]}
+                    onPress={() => updatePlayer(p.userId, { fairPlay: n })}
+                  >
+                    <Text style={[styles.fairPlayBtnText, p.fairPlay === n && styles.fairPlayBtnTextActive]}>
+                      {n}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
           </View>
         ))
@@ -345,5 +366,21 @@ const styles = StyleSheet.create({
   mvpBtnActive: { backgroundColor: Colors.warning, borderColor: Colors.warning },
   mvpText: { ...Typography.small, color: Colors.textMuted, fontWeight: '700' },
   mvpTextActive: { color: Colors.background },
+  fairPlayBlock: { marginTop: Spacing.md },
+  fairPlayLabel: { ...Typography.caption, color: Colors.text, fontWeight: '700', marginBottom: 2 },
+  fairPlayHint: { ...Typography.small, color: Colors.textMuted, marginBottom: Spacing.sm },
+  fairPlayRow: { flexDirection: 'row', gap: Spacing.sm },
+  fairPlayBtn: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceElevated,
+    alignItems: 'center',
+  },
+  fairPlayBtnActive: { backgroundColor: Colors.primaryMuted, borderColor: Colors.primary },
+  fairPlayBtnText: { ...Typography.bodyBold, color: Colors.textMuted },
+  fairPlayBtnTextActive: { color: Colors.primary },
   submitBtn: { marginTop: Spacing.xl },
 });

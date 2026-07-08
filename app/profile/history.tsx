@@ -74,6 +74,10 @@ export default function HistoryScreen() {
               <Text style={styles.statText}>{item.rating}</Text>
             </View>
             <View style={styles.stat}>
+              <Text style={styles.statIcon}>🤝</Text>
+              <Text style={styles.statText}>{item.fairPlay}/5</Text>
+            </View>
+            <View style={styles.stat}>
               <Text style={styles.statIcon}>⚽</Text>
               <Text style={styles.statText}>
                 {item.goals} but{item.goals > 1 ? 's' : ''}

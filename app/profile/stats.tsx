@@ -70,7 +70,7 @@ export default function StatsScreen() {
           { label: 'Minutes', value: user.stats.minutesPlayed },
           { label: 'Tirs cadrés', value: `${user.stats.shotsOnTarget}%` },
           { label: 'Précision passes', value: `${user.stats.passAccuracy}%` },
-          { label: 'Fair-play', value: user.stats.fairPlayScore },
+          { label: 'Fair-play', value: `${user.stats.averageFairPlay}/5` },
         ]}
         columns={3}
       />

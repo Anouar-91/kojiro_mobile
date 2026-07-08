@@ -153,6 +153,7 @@ export interface PlayerMatchStat {
   goals: number;
   assists: number;
   rating: number;
+  fairPlay: number;
   mvp: boolean;
 }
 
@@ -172,6 +173,7 @@ export async function completeMatch(
       goals: p.goals,
       assists: p.assists,
       rating: p.rating,
+      fair_play: p.fairPlay,
       mvp: p.mvp,
     })),
   });

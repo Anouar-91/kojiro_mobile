@@ -60,7 +60,7 @@ export default function ProfileScreen() {
           { label: 'Passes', value: user.stats.assists, icon: '🅰️' },
           { label: 'Note moy.', value: user.stats.averageRating, icon: '⭐' },
           { label: 'MVP', value: user.stats.mvpCount, icon: '🏆' },
-          { label: 'Fair-play', value: user.stats.fairPlayScore, icon: '🤝' },
+          { label: 'Fair-play', value: `${user.stats.averageFairPlay}/5`, icon: '🤝' },
         ]}
       />
 

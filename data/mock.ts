@@ -21,6 +21,7 @@ const defaultStats = {
   mvpCount: 5,
   averageRating: 4.3,
   fairPlayScore: 92,
+  averageFairPlay: 4.6,
   shotsOnTarget: 67,
   passAccuracy: 78,
   minutesPlayed: 3420,
@@ -364,10 +365,10 @@ export const mockNews: NewsItem[] = [
 ];
 
 export const mockMatchHistory: MatchHistory[] = [
-  { id: 'hist-1', matchId: 'match-old-1', title: 'Foot à 7 - City Stade', date: '2026-06-28', result: 'Victoire', score: '4-2', rating: 4.5, goals: 1, assists: 2, mvp: false },
-  { id: 'hist-2', matchId: 'match-old-2', title: 'Foot à 5 - Urban Soccer', date: '2026-06-22', result: 'Défaite', score: '2-3', rating: 3.8, goals: 0, assists: 1, mvp: false },
-  { id: 'hist-3', matchId: 'match-old-3', title: 'Foot à 11 - Léo Lagrange', date: '2026-06-15', result: 'Victoire', score: '3-1', rating: 4.8, goals: 2, assists: 0, mvp: true },
-  { id: 'hist-4', matchId: 'match-old-4', title: 'Foot à 7 - Soirée amis', date: '2026-06-08', result: 'Nul', score: '2-2', rating: 4.0, goals: 1, assists: 0, mvp: false },
+  { id: 'hist-1', matchId: 'match-old-1', title: 'Foot à 7 - City Stade', date: '2026-06-28', result: 'Victoire', score: '4-2', rating: 4.5, fairPlay: 5, goals: 1, assists: 2, mvp: false },
+  { id: 'hist-2', matchId: 'match-old-2', title: 'Foot à 5 - Urban Soccer', date: '2026-06-22', result: 'Défaite', score: '2-3', rating: 3.8, fairPlay: 4, goals: 0, assists: 1, mvp: false },
+  { id: 'hist-3', matchId: 'match-old-3', title: 'Foot à 11 - Léo Lagrange', date: '2026-06-15', result: 'Victoire', score: '3-1', rating: 4.8, fairPlay: 5, goals: 2, assists: 0, mvp: true },
+  { id: 'hist-4', matchId: 'match-old-4', title: 'Foot à 7 - Soirée amis', date: '2026-06-08', result: 'Nul', score: '2-2', rating: 4.0, fairPlay: 4, goals: 1, assists: 0, mvp: false },
 ];
 
 export function getUserById(id: string): User | undefined {

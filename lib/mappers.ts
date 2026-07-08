@@ -10,7 +10,8 @@ const DEFAULT_STATS = {
   draws: 0,
   mvpCount: 0,
   averageRating: 4.0,
-  fairPlayScore: 90,
+  averageFairPlay: 4.0,
+  fairPlayScore: 80,
   shotsOnTarget: 0,
   passAccuracy: 0,
   minutesPlayed: 0,
@@ -49,7 +50,12 @@ export function mapProfileToUser(profile: DbProfile): User {
       draws: stats.draws ?? DEFAULT_STATS.draws,
       mvpCount: stats.mvpCount ?? DEFAULT_STATS.mvpCount,
       averageRating: stats.averageRating ?? DEFAULT_STATS.averageRating,
-      fairPlayScore: stats.fairPlayScore ?? DEFAULT_STATS.fairPlayScore,
+      averageFairPlay:
+        stats.averageFairPlay ??
+        (stats.fairPlayScore != null ? Number(stats.fairPlayScore) / 20 : DEFAULT_STATS.averageFairPlay),
+      fairPlayScore:
+        stats.fairPlayScore ??
+        Math.round((stats.averageFairPlay ?? DEFAULT_STATS.averageFairPlay) * 20),
       shotsOnTarget: stats.shotsOnTarget ?? DEFAULT_STATS.shotsOnTarget,
       passAccuracy: stats.passAccuracy ?? DEFAULT_STATS.passAccuracy,
       minutesPlayed: stats.minutesPlayed ?? DEFAULT_STATS.minutesPlayed,
