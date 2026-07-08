@@ -17,6 +17,7 @@ import { useMatchStore } from '@/store/matchStore';
 import { useProfileStore } from '@/store/profileStore';
 import { NewsItem, User } from '@/types';
 import { distanceKm, getUserPosition } from '@/utils/geo';
+import { isUserRegisteredForMatch } from '@/utils/matchAttendance';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -30,7 +31,13 @@ export default function HomeScreen() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const upcomingMatches = matches.filter((m) => m.status === 'upcoming').slice(0, 3);
+  const myUpcomingMatches = useMemo(
+    () =>
+      matches
+        .filter((m) => m.status === 'upcoming' && isUserRegisteredForMatch(m, user?.id))
+        .slice(0, 3),
+    [matches, user?.id]
+  );
   const userPosition = useMemo(() => getUserPosition(user ?? undefined), [user]);
   const nearbyMatches = useMemo(() => {
     return matches
@@ -91,17 +98,23 @@ export default function HomeScreen() {
         />
 
         <SectionHeader
-          title="Prochains matchs"
+          title="Mes prochains matchs"
           action="Voir tout"
           onAction={() => router.push('/(tabs)/matches')}
         />
-        {upcomingMatches.map((match) => (
-          <UpcomingMatchCard
-            key={match.id}
-            match={match}
-            onPress={() => router.push(`/match/${match.id}`)}
-          />
-        ))}
+        {myUpcomingMatches.length === 0 ? (
+          <Text style={styles.emptySection}>
+            Tu n'as pas encore de match prévu. Crée-en un ou rejoins-en un à proximité.
+          </Text>
+        ) : (
+          myUpcomingMatches.map((match) => (
+            <UpcomingMatchCard
+              key={match.id}
+              match={match}
+              onPress={() => router.push(`/match/${match.id}`)}
+            />
+          ))
+        )}
 
         <SectionHeader
           title="Matchs autour de toi"
@@ -207,5 +220,11 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textMuted,
     marginBottom: Spacing.xl,
+  },
+  emptySection: {
+    ...Typography.body,
+    color: Colors.textMuted,
+    marginBottom: Spacing.xl,
+    lineHeight: 22,
   },
 });

@@ -54,3 +54,12 @@ export function canJoinWaitlist(
   if (mine?.status === 'waitlist') return false;
   return true;
 }
+
+export function isUserRegisteredForMatch(
+  match: Pick<Match, 'attendees'>,
+  userId: string | undefined
+): boolean {
+  if (!userId) return false;
+  const mine = match.attendees.find((a) => a.userId === userId);
+  return Boolean(mine && mine.status !== 'absent');
+}
