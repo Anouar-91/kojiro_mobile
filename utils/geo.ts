@@ -1,5 +1,7 @@
 import { GeoPlace, PARIS_CENTER } from '@/types/geo';
 
+export type GeoCoords = { latitude: number; longitude: number };
+
 const EARTH_RADIUS_KM = 6371;
 
 export function distanceKm(
@@ -22,7 +24,7 @@ export function distanceKm(
 export function getUserPosition(user?: {
   latitude?: number;
   longitude?: number;
-}): { latitude: number; longitude: number } {
+}): GeoCoords {
   if (user?.latitude != null && user?.longitude != null) {
     return { latitude: user.latitude, longitude: user.longitude };
   }

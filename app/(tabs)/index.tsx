@@ -10,13 +10,14 @@ import { Button } from '@/components/ui/Button';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useAppRefresh } from '@/hooks/useAppRefresh';
+import { useCurrentLocation } from '@/hooks/useCurrentLocation';
 import { fetchNews } from '@/services/news';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
 import { useMatchStore } from '@/store/matchStore';
 import { useProfileStore } from '@/store/profileStore';
 import { NewsItem, User } from '@/types';
-import { distanceKm, getUserPosition } from '@/utils/geo';
+import { distanceKm } from '@/utils/geo';
 import { isUserRegisteredForMatch } from '@/utils/matchAttendance';
 
 export default function HomeScreen() {
@@ -38,7 +39,7 @@ export default function HomeScreen() {
         .slice(0, 3),
     [matches, user?.id]
   );
-  const userPosition = useMemo(() => getUserPosition(user ?? undefined), [user]);
+  const { position: userPosition } = useCurrentLocation(user ?? undefined);
   const nearbyMatches = useMemo(() => {
     return matches
       .filter((m) => m.status === 'upcoming')

@@ -15,12 +15,14 @@ import {
 import { LocationPicker } from '@/components/ui/LocationPicker';
 import { Button } from '@/components/ui/Button';
 import { ChipGroup } from '@/components/ui/Chip';
+import { DateTimeField, getDefaultMatchDateTime } from '@/components/ui/DateTimeField';
 import { Input } from '@/components/ui/Input';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { MATCH_FORMAT_PRESETS, SUBSTITUTE_PRESETS, MatchVisibility } from '@/types';
 import { GeoPlace } from '@/types/geo';
+import { format } from 'date-fns';
 import {
   clampPlayersPerTeam,
   clampSubstitutesPerTeam,
@@ -37,10 +39,9 @@ export default function CreateMatchScreen() {
   const [playersPerTeam, setPlayersPerTeam] = useState(7);
   const [substitutesPerTeam, setSubstitutesPerTeam] = useState(0);
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState('2026-07-10');
-  const [time, setTime] = useState('19:00');
+  const [matchDate, setMatchDate] = useState(getDefaultMatchDateTime);
   const [location, setLocation] = useState<GeoPlace | null>(null);
-  const [price, setPrice] = useState('8');
+  const [price, setPrice] = useState('0');
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<MatchVisibility>('public');
   const [loading, setLoading] = useState(false);
@@ -56,6 +57,22 @@ export default function CreateMatchScreen() {
 
   const adjustPlayers = (delta: number) => {
     setPlayersPerTeam((prev) => clampPlayersPerTeam(prev + delta));
+  };
+
+  const handleDateChange = (selected: Date) => {
+    setMatchDate((prev) => {
+      const next = new Date(selected);
+      next.setHours(prev.getHours(), prev.getMinutes(), 0, 0);
+      return next;
+    });
+  };
+
+  const handleTimeChange = (selected: Date) => {
+    setMatchDate((prev) => {
+      const next = new Date(prev);
+      next.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+      return next;
+    });
   };
 
   const handleCreate = async () => {
@@ -74,8 +91,8 @@ export default function CreateMatchScreen() {
           title: title.trim() || `Foot ${formatLabel}`,
           format: playersPerTeam,
           substitutesPerTeam,
-          date,
-          time,
+          date: format(matchDate, 'yyyy-MM-dd'),
+          time: format(matchDate, 'HH:mm'),
           locationName: location.name,
           locationAddress: location.address,
           latitude: location.latitude,
@@ -205,8 +222,21 @@ export default function CreateMatchScreen() {
           onChangeText={setTitle}
           icon="football-outline"
         />
-        <Input label="Date" placeholder="2026-07-10" value={date} onChangeText={setDate} icon="calendar-outline" />
-        <Input label="Heure" placeholder="19:00" value={time} onChangeText={setTime} icon="time-outline" />
+        <DateTimeField
+          label="Date"
+          value={matchDate}
+          onChange={handleDateChange}
+          mode="date"
+          icon="calendar-outline"
+          minimumDate={new Date()}
+        />
+        <DateTimeField
+          label="Heure"
+          value={matchDate}
+          onChange={handleTimeChange}
+          mode="time"
+          icon="time-outline"
+        />
 
         <LocationPicker
           label="Lieu du match"
@@ -217,7 +247,7 @@ export default function CreateMatchScreen() {
           showCurrentLocation
         />
 
-        <Input label="Prix par joueur (€)" placeholder="8" value={price} onChangeText={setPrice} keyboardType="numeric" icon="cash-outline" />
+        <Input label="Prix par joueur (€)" placeholder="0" value={price} onChangeText={setPrice} keyboardType="numeric" icon="cash-outline" />
         <Input
           label="Description"
           placeholder="Infos complémentaires..."

@@ -65,7 +65,8 @@
           "color": "#39FF14"
         }
       ],
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

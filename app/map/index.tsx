@@ -1,14 +1,15 @@
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { NearbyMatchCard } from '@/components/home/MatchCards';
 import { MatchMapView } from '@/components/map/MatchMapView';
 import { Colors, Spacing, Typography } from '@/constants/theme';
-import { useAuthStore } from '@/store/authStore';
+import { useCurrentLocation } from '@/hooks/useCurrentLocation';
 import { useMatchStore } from '@/store/matchStore';
 import { Match } from '@/types';
-import { distanceKm, getUserPosition } from '@/utils/geo';
+import { distanceKm } from '@/utils/geo';
 
 interface MatchWithDistance {
   match: Match;
@@ -17,9 +18,8 @@ interface MatchWithDistance {
 
 export default function MapScreen() {
   const router = useRouter();
-  const user = useAuthStore((s) => s.user);
   const allMatches = useMatchStore((s) => s.matches);
-  const userPosition = useMemo(() => getUserPosition(user ?? undefined), [user]);
+  const { position: userPosition, loading: locating, refresh: refreshLocation } = useCurrentLocation();
 
   const matchesWithDistance = useMemo<MatchWithDistance[]>(() => {
     return allMatches
@@ -51,9 +51,18 @@ export default function MapScreen() {
       />
 
       <View style={styles.listOverlay}>
-        <Text style={styles.listTitle}>
-          {selectedId ? 'Match sélectionné' : 'Matchs à proximité'}
-        </Text>
+        <View style={styles.listHeader}>
+          <Text style={styles.listTitle}>
+            {selectedId ? 'Match sélectionné' : 'Matchs à proximité'}
+          </Text>
+          <Pressable onPress={refreshLocation} style={styles.locateBtn} disabled={locating}>
+            {locating ? (
+              <ActivityIndicator size="small" color={Colors.primary} />
+            ) : (
+              <Ionicons name="navigate" size={20} color={Colors.primary} />
+            )}
+          </Pressable>
+        </View>
         {matchesWithDistance.length === 0 ? (
           <Text style={styles.empty}>Aucun match à venir avec une position connue.</Text>
         ) : (
@@ -101,8 +110,22 @@ const styles = StyleSheet.create({
   listTitle: {
     ...Typography.h3,
     color: Colors.text,
+    flex: 1,
+  },
+  listHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: Spacing.xxl,
     marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  locateBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primaryMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   empty: {
     ...Typography.body,
