@@ -19,7 +19,13 @@ import { useMatchStore } from '@/store/matchStore';
 import { getUsersByAttendance, useProfileStore } from '@/store/profileStore';
 import { AttendanceStatus } from '@/types';
 import { formatMatchDate, formatPrice, getMatchFormatDescription } from '@/utils/formatters';
-import { canSetPresent, isMatchFull } from '@/utils/matchAttendance';
+import {
+  canJoinWaitlist,
+  canSetPresent,
+  getWaitlistPosition,
+  isMatchFull,
+  isOnWaitlist,
+} from '@/utils/matchAttendance';
 
 export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -67,12 +73,37 @@ export default function MatchDetailScreen() {
   const isCompleted = match.status === 'completed';
   const matchIsFull = isMatchFull(match);
   const userCanSetPresent = user ? canSetPresent(match, user.id) : false;
+  const userOnWaitlist = user ? isOnWaitlist(match, user.id) : false;
+  const waitlistPosition = user ? getWaitlistPosition(match, user.id) : null;
+  const userCanJoinWaitlist = user ? canJoinWaitlist(match, user.id) : false;
   const isFriendsOnly = match.visibility === 'friends_only';
   const canJoin =
     !isFriendsOnly ||
     isOrganizer ||
     (user && isFriend(match.organizerId)) ||
     match.attendees.some((a) => a.userId === user?.id);
+
+  const handleJoinWaitlist = async () => {
+    if (!user) return;
+    try {
+      await updateAttendance(match.id, user.id, 'waitlist');
+      Alert.alert(
+        'Liste d\'attente',
+        'Tu seras notifié si une place se libère. Le premier à confirmer sa présence réserve la place.'
+      );
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de rejoindre la liste');
+    }
+  };
+
+  const handleLeaveWaitlist = async () => {
+    if (!user) return;
+    try {
+      await updateAttendance(match.id, user.id, 'absent');
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de quitter la liste');
+    }
+  };
 
   const handleStartMatch = async () => {
     try {
@@ -144,8 +175,37 @@ export default function MatchDetailScreen() {
               onStatusChange={handleStatusChange}
               canSetPresent={userCanSetPresent}
             />
-            {matchIsFull && myAttendance !== 'present' && (
-              <Text style={styles.fullHint}>Ce match est complet. Tu peux répondre « Peut-être » ou « Absent ».</Text>
+            {matchIsFull && myAttendance !== 'present' && !userOnWaitlist && (
+              <Text style={styles.fullHint}>
+                Ce match est complet. Rejoins la liste d'attente : si une place se libère, tout le monde est prévenu et c'est le premier à confirmer qui l'obtient.
+              </Text>
+            )}
+            {userOnWaitlist && waitlistPosition != null && (
+              <View style={styles.waitlistBanner}>
+                <Ionicons name="time-outline" size={18} color={Colors.primary} />
+                <Text style={styles.waitlistText}>
+                  En liste d'attente (inscrit n°{waitlistPosition}) — réagis vite quand tu reçois la notif
+                </Text>
+              </View>
+            )}
+            {userCanJoinWaitlist && (
+              <Button
+                title="Rejoindre la liste d'attente"
+                onPress={handleJoinWaitlist}
+                icon="hourglass-outline"
+                fullWidth
+                variant="outline"
+                style={styles.waitlistBtn}
+              />
+            )}
+            {userOnWaitlist && (
+              <Button
+                title="Quitter la liste d'attente"
+                onPress={handleLeaveWaitlist}
+                variant="ghost"
+                fullWidth
+                size="sm"
+              />
             )}
             <ProgressBar
               progress={presentUsers.length / match.maxPlayers}
@@ -159,7 +219,12 @@ export default function MatchDetailScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Participants</Text>
         <AttendanceSection title="Présents" users={presentUsers} statusColor={Colors.success} />
-        <AttendanceSection title="En attente" users={getUsersByAttendance(match, 'pending', getProfile)} statusColor={Colors.textMuted} />
+        <AttendanceSection
+          title="Liste d'attente"
+          users={getUsersByAttendance(match, 'waitlist', getProfile)}
+          statusColor={Colors.primary}
+        />
+        <AttendanceSection title="Invitations en attente" users={getUsersByAttendance(match, 'pending', getProfile)} statusColor={Colors.textMuted} />
         <AttendanceSection title="Peut-être" users={maybeUsers} statusColor={Colors.warning} />
         <AttendanceSection title="Absents" users={absentUsers} statusColor={Colors.error} />
       </View>
@@ -257,5 +322,18 @@ const styles = StyleSheet.create({
   description: { ...Typography.body, color: Colors.textSecondary, lineHeight: 22 },
   restricted: { ...Typography.body, color: Colors.textMuted, fontStyle: 'italic' },
   fullHint: { ...Typography.caption, color: Colors.warning, marginBottom: Spacing.sm },
+  waitlistBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: `${Colors.primary}15`,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}40`,
+  },
+  waitlistText: { ...Typography.caption, color: Colors.primary, fontWeight: '600', flex: 1 },
+  waitlistBtn: { marginBottom: Spacing.sm },
   actions: { paddingHorizontal: Spacing.xxl, gap: Spacing.md },
 });

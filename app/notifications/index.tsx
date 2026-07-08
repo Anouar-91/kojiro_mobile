@@ -9,6 +9,7 @@ import { formatRelativeTime } from '@/utils/formatters';
 
 const NOTIF_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   match_invite: 'mail-open-outline',
+  match_waitlist: 'hourglass-outline',
   friend_request: 'person-add-outline',
   match_reminder: 'alarm-outline',
   team_assigned: 'people-outline',
@@ -18,7 +19,7 @@ const NOTIF_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 
 function getNotificationRoute(notif: Notification): string | null {
   const matchId = notif.data?.matchId;
-  if (matchId && (notif.type === 'match_invite' || notif.type === 'match_reminder' || notif.type === 'team_assigned')) {
+  if (matchId && (notif.type === 'match_invite' || notif.type === 'match_reminder' || notif.type === 'team_assigned' || notif.type === 'match_waitlist')) {
     return `/match/${matchId}`;
   }
   if (notif.type === 'tournament') return '/tournament';

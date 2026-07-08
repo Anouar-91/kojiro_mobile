@@ -78,6 +78,7 @@ export type DbAttendee = {
   user_id: string;
   status: string;
   team_id: string | null;
+  created_at?: string;
 };
 
 export type DbMessage = {

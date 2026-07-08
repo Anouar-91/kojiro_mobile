@@ -2,11 +2,11 @@ import { mapDbMatchToMatch } from '@/lib/mappers';
 import { supabase } from '@/lib/supabase';
 import { fetchFriendIds } from '@/services/friends';
 import { AttendanceStatus, Match, MatchFormat, MatchVisibility } from '@/types';
-import { canSetPresent } from '@/utils/matchAttendance';
+import { canSetPresent, isMatchFull } from '@/utils/matchAttendance';
 
 const MATCH_SELECT = `
   *,
-  match_attendees ( id, match_id, user_id, status, team_id )
+  match_attendees ( id, match_id, user_id, status, team_id, created_at )
 `;
 
 export async function fetchMatches(userId?: string): Promise<Match[]> {
@@ -116,7 +116,17 @@ export async function upsertAttendance(
   }
 
   if (status === 'present' && match && !canSetPresent(match, userId)) {
-    throw new Error(`Ce match est complet (${match.maxPlayers} places)`);
+    throw new Error(`Ce match est complet (${match.maxPlayers} places). Rejoins la liste d'attente.`);
+  }
+
+  if (status === 'waitlist') {
+    if (!match || !isMatchFull(match)) {
+      throw new Error('Le match n\'est pas complet, tu peux t\'inscrire directement.');
+    }
+    const mine = match.attendees.find((a) => a.userId === userId);
+    if (mine?.status === 'present') {
+      throw new Error('Tu es déjà inscrit comme présent.');
+    }
   }
 
   const { error } = await supabase.from('match_attendees').upsert(

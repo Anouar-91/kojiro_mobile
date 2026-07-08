@@ -1,6 +1,6 @@
 export type Position = 'GK' | 'DEF' | 'MID' | 'FWD';
 export type Foot = 'Gauche' | 'Droit' | 'Ambidextre';
-export type AttendanceStatus = 'present' | 'absent' | 'maybe' | 'pending';
+export type AttendanceStatus = 'present' | 'absent' | 'maybe' | 'pending' | 'waitlist';
 /** Nombre de joueurs par équipe (ex. 9 = 9v9) */
 export type MatchFormat = number;
 
@@ -84,6 +84,7 @@ export interface MatchAttendee {
   userId: string;
   status: AttendanceStatus;
   teamId?: string;
+  joinedAt?: string;
 }
 
 export interface Team {
@@ -137,7 +138,7 @@ export interface LeaderboardEntry {
 
 export interface Notification {
   id: string;
-  type: 'match_invite' | 'match_reminder' | 'team_assigned' | 'social' | 'tournament' | 'friend_request';
+  type: 'match_invite' | 'match_reminder' | 'match_waitlist' | 'team_assigned' | 'social' | 'tournament' | 'friend_request';
   title: string;
   body: string;
   read: boolean;

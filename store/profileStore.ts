@@ -40,11 +40,19 @@ export function getPresentUsersFromMatch(match: Match, getProfile: (id: string) 
 
 export function getUsersByAttendance(
   match: Match,
-  status: 'present' | 'maybe' | 'absent' | 'pending',
+  status: 'present' | 'maybe' | 'absent' | 'pending' | 'waitlist',
   getProfile: (id: string) => User | undefined
 ): User[] {
-  return match.attendees
-    .filter((a) => a.status === status)
-    .map((a) => getProfile(a.userId))
-    .filter(Boolean) as User[];
+  const attendees =
+    status === 'waitlist'
+      ? match.attendees
+          .filter((a) => a.status === 'waitlist')
+          .sort((a, b) => {
+            const ta = a.joinedAt ? new Date(a.joinedAt).getTime() : 0;
+            const tb = b.joinedAt ? new Date(b.joinedAt).getTime() : 0;
+            return ta - tb;
+          })
+      : match.attendees.filter((a) => a.status === status);
+
+  return attendees.map((a) => getProfile(a.userId)).filter(Boolean) as User[];
 }

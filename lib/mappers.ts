@@ -63,6 +63,7 @@ export function mapDbMatchToMatch(row: DbMatch): Match {
     userId: a.user_id,
     status: a.status as MatchAttendee['status'],
     teamId: a.team_id ?? undefined,
+    joinedAt: a.created_at,
   }));
 
   return {
