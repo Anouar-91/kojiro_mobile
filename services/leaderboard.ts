@@ -1,3 +1,5 @@
+import { mapProfileToUser } from '@/lib/mappers';
+import { supabase } from '@/lib/supabase';
 import { fetchAllProfiles } from '@/services/profiles';
 import { LeaderboardEntry } from '@/types';
 
@@ -18,12 +20,15 @@ export async function fetchFriendsLeaderboard(
   friendIds: string[],
   currentUserId: string
 ): Promise<LeaderboardEntry[]> {
-  const ids = new Set([...friendIds, currentUserId]);
-  const profiles = await fetchAllProfiles();
+  const ids = [...new Set([...friendIds, currentUserId])];
+  if (ids.length === 0) return [];
 
-  return profiles
-    .filter((p) => ids.has(p.id))
-    .sort((a, b) => b.xp - a.xp)
+  const { data, error } = await supabase.from('profiles').select('*').in('id', ids);
+  if (error || !data) return [];
+
+  return data
+    .map(mapProfileToUser)
+    .sort((a, b) => b.xp - a.xp || b.level - a.level)
     .map((profile, index) => ({
       rank: index + 1,
       userId: profile.id,

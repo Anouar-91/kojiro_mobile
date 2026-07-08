@@ -8,7 +8,7 @@ import { ChipGroup } from '@/components/ui/Chip';
 import { Input } from '@/components/ui/Input';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Colors, Spacing, Typography } from '@/constants/theme';
-import { fetchLeaderboard, fetchFriendsLeaderboard } from '@/services/leaderboard';
+import { fetchFriendsLeaderboard } from '@/services/leaderboard';
 import { searchProfiles } from '@/services/profiles';
 import { fetchSocialPosts, subscribeToSocialPosts } from '@/services/social';
 import { useAuthStore } from '@/store/authStore';
@@ -71,11 +71,7 @@ export default function CommunityScreen() {
     if (!user) return;
     setLoadingRankings(true);
     try {
-      const entries =
-        friendIds.length > 0
-          ? await fetchFriendsLeaderboard(friendIds, user.id)
-          : await fetchLeaderboard();
-      setLeaderboard(entries);
+      setLeaderboard(await fetchFriendsLeaderboard(friendIds, user.id));
     } finally {
       setLoadingRankings(false);
     }
@@ -217,7 +213,7 @@ export default function CommunityScreen() {
             options={[
               { label: `Amis${friends.length ? ` (${friends.length})` : ''}`, value: 'friends' },
               { label: 'Découvrir', value: 'players' },
-              { label: 'Classement', value: 'rankings' },
+              { label: 'Classement amis', value: 'rankings' },
               { label: 'Highlights', value: 'highlights' },
             ]}
             selected={tab}
@@ -321,7 +317,10 @@ export default function CommunityScreen() {
             ) : (
               <>
                 <LeaderboardPodium entries={leaderboard.slice(0, 3)} users={usersMap} />
-                <SectionHeader title="Classement" action="Voir tout" onAction={() => router.push('/rankings')} />
+                {friendIds.length === 0 && (
+                  <Text style={styles.empty}>Ajoute des amis pour comparer vos scores.</Text>
+                )}
+                <SectionHeader title="Classement amis" action="Voir tout" onAction={() => router.push('/rankings')} />
                 {leaderboard.map((entry) => {
                   const profile = getProfile(entry.userId);
                   if (!profile) return null;

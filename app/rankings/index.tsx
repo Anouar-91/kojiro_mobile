@@ -1,40 +1,38 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { LeaderboardPodium, PlayerListItem } from '@/components/community/CommunityComponents';
-import { ChipGroup } from '@/components/ui/Chip';
-import { Colors, Spacing } from '@/constants/theme';
-import { fetchFriendsLeaderboard, fetchLeaderboard } from '@/services/leaderboard';
+import { Colors, Spacing, Typography } from '@/constants/theme';
+import { fetchFriendsLeaderboard } from '@/services/leaderboard';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
 import { useProfileStore } from '@/store/profileStore';
 import { LeaderboardEntry, User } from '@/types';
 
-type RankingTab = 'general' | 'monthly' | 'friends' | 'cities';
-
 export default function RankingsScreen() {
   const user = useAuthStore((s) => s.user);
   const profiles = useProfileStore((s) => s.profiles);
   const friendIds = useFriendStore((s) => s.friendIds);
+  const fetchFriends = useFriendStore((s) => s.fetchFriends);
   const getProfile = useProfileStore((s) => s.getProfile);
-  const [tab, setTab] = useState<RankingTab>('general');
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   const usersMap = Object.fromEntries(profiles.map((u) => [u.id, u])) as Record<string, User>;
 
   const load = useCallback(async () => {
+    if (!user) return;
     setLoading(true);
     try {
-      if (tab === 'friends' && user) {
-        setLeaderboard(await fetchFriendsLeaderboard(friendIds, user.id));
-      } else {
-        setLeaderboard(await fetchLeaderboard());
-      }
+      setLeaderboard(await fetchFriendsLeaderboard(friendIds, user.id));
     } finally {
       setLoading(false);
     }
-  }, [tab, user, friendIds]);
+  }, [user, friendIds]);
+
+  useEffect(() => {
+    if (user) fetchFriends(user.id);
+  }, [user, fetchFriends]);
 
   useEffect(() => {
     load();
@@ -50,16 +48,11 @@ export default function RankingsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <ChipGroup
-        options={[
-          { label: 'Général', value: 'general' },
-          { label: 'Mensuel', value: 'monthly' },
-          { label: 'Amis', value: 'friends' },
-          { label: 'Villes', value: 'cities' },
-        ]}
-        selected={tab}
-        onSelect={(v) => setTab(v as RankingTab)}
-      />
+      <Text style={styles.subtitle}>Compare ton XP avec tes amis</Text>
+
+      {friendIds.length === 0 && (
+        <Text style={styles.hint}>Ajoute des amis pour voir le classement complet.</Text>
+      )}
 
       <LeaderboardPodium entries={leaderboard.slice(0, 3)} users={usersMap} />
 
@@ -76,4 +69,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: Spacing.xxl },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
+  subtitle: { ...Typography.body, color: Colors.textMuted, marginBottom: Spacing.md },
+  hint: { ...Typography.caption, color: Colors.textMuted, marginBottom: Spacing.lg },
 });

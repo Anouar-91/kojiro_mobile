@@ -14,7 +14,7 @@ const MENU_ITEMS = [
   { icon: 'stats-chart', label: 'Statistiques détaillées', route: '/profile/stats' },
   { icon: 'time', label: 'Historique des matchs', route: '/profile/history' },
   { icon: 'trophy', label: 'Tournois', route: '/tournament' },
-  { icon: 'podium-outline', label: 'Classements', route: '/rankings' },
+  { icon: 'podium-outline', label: 'Classement amis', route: '/rankings' },
   { icon: 'videocam', label: 'Highlights', route: '/social/feed' },
   { icon: 'settings-outline', label: 'Paramètres', route: '/profile/edit' },
 ];
