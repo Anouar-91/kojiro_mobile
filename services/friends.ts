@@ -123,3 +123,28 @@ export function getFriendshipState(
 
   return 'none';
 }
+
+export function subscribeToFriendRequests(onChange: () => void): () => void {
+  const channel = supabase
+    .channel('realtime:friend_requests')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'friend_requests' },
+      () => onChange()
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'friend_requests' },
+      () => onChange()
+    )
+    .on(
+      'postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'friend_requests' },
+      () => onChange()
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}

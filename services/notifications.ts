@@ -52,6 +52,26 @@ export async function createNotification(
   if (error) throw new Error(error.message);
 }
 
+export function subscribeToNotifications(userId: string, onInsert: () => void): () => void {
+  const channel = supabase
+    .channel(`notifications:${userId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${userId}`,
+      },
+      () => onInsert()
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
 export async function ensureWelcomeNotification(userId: string): Promise<void> {
   const existing = await fetchNotifications(userId);
   if (existing.length > 0) return;

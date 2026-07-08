@@ -175,3 +175,78 @@ export async function completeMatch(
 
   if (error) throw new Error(error.message);
 }
+
+export interface RealtimeAttendeeRow {
+  match_id: string;
+  user_id: string;
+  status: string;
+  team_id?: string | null;
+  created_at: string;
+}
+
+export function subscribeToMatchAttendees(callbacks: {
+  onUpsert: (row: RealtimeAttendeeRow) => void;
+  onDelete: (row: { match_id: string; user_id: string }) => void;
+}): () => void {
+  const channel = supabase
+    .channel('realtime:match_attendees')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'match_attendees' },
+      (payload) => callbacks.onUpsert(payload.new as RealtimeAttendeeRow)
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'match_attendees' },
+      (payload) => callbacks.onUpsert(payload.new as RealtimeAttendeeRow)
+    )
+    .on(
+      'postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'match_attendees' },
+      (payload) => {
+        const old = payload.old as Partial<RealtimeAttendeeRow>;
+        if (old.match_id && old.user_id) {
+          callbacks.onDelete({ match_id: old.match_id, user_id: old.user_id });
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
+export function subscribeToMatches(callbacks: {
+  onChange: (matchId: string) => void;
+  onInsert: () => void;
+}): () => void {
+  const channel = supabase
+    .channel('realtime:matches')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'matches' },
+      () => callbacks.onInsert()
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'matches' },
+      (payload) => {
+        const row = payload.new as { id?: string };
+        if (row.id) callbacks.onChange(row.id);
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'matches' },
+      (payload) => {
+        const row = payload.old as { id?: string };
+        if (row.id) callbacks.onChange(row.id);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}

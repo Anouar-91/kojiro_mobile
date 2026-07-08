@@ -5,9 +5,9 @@ import {
   fetchNotifications,
   markNotificationRead as markReadApi,
 } from '@/services/notifications';
-import { createMatch as createMatchApi, fetchMatches, removeAttendeeByOrganizer as removeAttendeeByOrganizerApi, upsertAttendance } from '@/services/matches';
+import { createMatch as createMatchApi, fetchMatchById, fetchMatches, removeAttendeeByOrganizer as removeAttendeeByOrganizerApi, RealtimeAttendeeRow, upsertAttendance } from '@/services/matches';
 import { createNotification } from '@/services/notifications';
-import { AttendanceStatus, Match, MatchFormat, MatchVisibility, Notification } from '@/types';
+import { AttendanceStatus, Match, MatchAttendee, MatchFormat, MatchVisibility, Notification } from '@/types';
 
 interface CreateMatchData {
   title: string;
@@ -36,6 +36,10 @@ interface MatchState {
   createMatch: (data: CreateMatchData, organizerId: string) => Promise<Match>;
   updateAttendance: (matchId: string, userId: string, status: AttendanceStatus) => Promise<void>;
   removeAttendeeByOrganizer: (matchId: string, userId: string) => Promise<void>;
+  syncAttendeeFromRealtime: (row: RealtimeAttendeeRow) => void;
+  removeAttendeeFromRealtime: (matchId: string, userId: string) => void;
+  removeMatchFromRealtime: (matchId: string) => void;
+  refreshMatch: (matchId: string) => Promise<void>;
   setSelectedMatch: (id: string | null) => void;
   markNotificationRead: (id: string) => Promise<void>;
   unreadCount: () => number;
@@ -115,6 +119,61 @@ export const useMatchStore = create<MatchState>((set, get) => ({
         };
       }),
     }));
+  },
+
+  syncAttendeeFromRealtime: (row) => {
+    const attendee: MatchAttendee = {
+      userId: row.user_id,
+      status: row.status as AttendanceStatus,
+      teamId: row.team_id ?? undefined,
+      joinedAt: row.created_at,
+    };
+
+    set((state) => ({
+      matches: state.matches.map((match) => {
+        if (match.id !== row.match_id) return match;
+        const existing = match.attendees.find((a) => a.userId === row.user_id);
+        const attendees = existing
+          ? match.attendees.map((a) => (a.userId === row.user_id ? attendee : a))
+          : [...match.attendees, attendee];
+        return { ...match, attendees };
+      }),
+    }));
+  },
+
+  removeAttendeeFromRealtime: (matchId, userId) => {
+    set((state) => ({
+      matches: state.matches.map((match) => {
+        if (match.id !== matchId) return match;
+        return {
+          ...match,
+          attendees: match.attendees.filter((a) => a.userId !== userId),
+        };
+      }),
+    }));
+  },
+
+  removeMatchFromRealtime: (matchId) => {
+    set((state) => ({
+      matches: state.matches.filter((m) => m.id !== matchId),
+    }));
+  },
+
+  refreshMatch: async (matchId) => {
+    const match = await fetchMatchById(matchId);
+    if (!match) {
+      get().removeMatchFromRealtime(matchId);
+      return;
+    }
+
+    set((state) => {
+      const exists = state.matches.some((m) => m.id === matchId);
+      return {
+        matches: exists
+          ? state.matches.map((m) => (m.id === matchId ? match : m))
+          : [match, ...state.matches],
+      };
+    });
   },
 
   setSelectedMatch: (id) => set({ selectedMatchId: id }),

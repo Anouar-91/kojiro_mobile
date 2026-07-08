@@ -43,9 +43,22 @@ export async function registerPushToken(userId: string): Promise<void> {
 export function setupNotificationListeners(
   onTap?: (data: Record<string, unknown>) => void
 ): () => void {
-  const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+  const tapSub = Notifications.addNotificationResponseReceivedListener((response) => {
     const data = response.notification.request.content.data;
     if (data && onTap) onTap(data as Record<string, unknown>);
   });
+  return () => tapSub.remove();
+}
+
+export function setupForegroundNotificationListener(onReceived?: () => void): () => void {
+  if (!onReceived) return () => {};
+  const sub = Notifications.addNotificationReceivedListener(() => {
+    onReceived();
+  });
   return () => sub.remove();
+}
+
+export async function setAppBadgeCount(count: number): Promise<void> {
+  if (Platform.OS === 'web') return;
+  await Notifications.setBadgeCountAsync(count);
 }

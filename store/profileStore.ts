@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 
-import { fetchAllProfiles } from '@/services/profiles';
+import { fetchAllProfiles, fetchProfile } from '@/services/profiles';
 import { Match, User } from '@/types';
 
 interface ProfileState {
   profiles: User[];
   isLoading: boolean;
   fetchProfiles: () => Promise<void>;
+  ensureProfile: (userId: string) => Promise<void>;
   getProfile: (id: string) => User | undefined;
   getOtherProfiles: (excludeId?: string) => User[];
 }
@@ -23,6 +24,17 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     } catch {
       set({ isLoading: false });
     }
+  },
+
+  ensureProfile: async (userId) => {
+    if (get().profiles.some((p) => p.id === userId)) return;
+    const profile = await fetchProfile(userId);
+    if (!profile) return;
+    set((state) => ({
+      profiles: state.profiles.some((p) => p.id === userId)
+        ? state.profiles
+        : [...state.profiles, profile],
+    }));
   },
 
   getProfile: (id) => get().profiles.find((p) => p.id === id),

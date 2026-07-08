@@ -10,7 +10,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { fetchLeaderboard, fetchFriendsLeaderboard } from '@/services/leaderboard';
 import { searchProfiles } from '@/services/profiles';
-import { fetchSocialPosts } from '@/services/social';
+import { fetchSocialPosts, subscribeToSocialPosts } from '@/services/social';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
 import { useProfileStore } from '@/store/profileStore';
@@ -124,6 +124,13 @@ export default function CommunityScreen() {
     if (tab === 'rankings') loadRankings();
     if (tab === 'highlights') loadHighlights();
   }, [tab, loadRankings, loadHighlights]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToSocialPosts(() => {
+      loadHighlights().catch(() => {});
+    });
+    return unsubscribe;
+  }, [loadHighlights]);
 
   const handleAddFriend = async (player: User) => {
     if (!user) return;

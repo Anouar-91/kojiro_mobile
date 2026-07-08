@@ -59,6 +59,21 @@ export async function likePost(postId: string): Promise<void> {
     .eq('id', postId);
 }
 
+export function subscribeToSocialPosts(onInsert: () => void): () => void {
+  const channel = supabase
+    .channel('realtime:social_posts')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'social_posts' },
+      () => onInsert()
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
 function mapPost(row: {
   id: string;
   author_id: string;

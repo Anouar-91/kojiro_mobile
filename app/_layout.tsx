@@ -7,7 +7,9 @@ import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
-import { registerPushToken, setupNotificationListeners } from '@/services/push';
+import { useNotificationSubscription } from '@/hooks/useNotificationSubscription';
+import { useAppRealtime } from '@/hooks/useAppRealtime';
+import { registerPushToken } from '@/services/push';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
 import { useMatchStore } from '@/store/matchStore';
@@ -29,6 +31,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const router = useRouter();
 
+  useNotificationSubscription(userId, (matchId) => {
+    router.push(`/match/${matchId}`);
+  });
+
+  useAppRealtime(userId);
+
   useEffect(() => {
     initialize();
   }, [initialize]);
@@ -42,15 +50,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       registerPushToken(userId);
     }
   }, [isAuthenticated, userId, fetchMatches, fetchProfiles, fetchFriends, fetchNotifications]);
-
-  useEffect(() => {
-    return setupNotificationListeners((data) => {
-      const matchId = data.matchId;
-      if (typeof matchId === 'string') {
-        router.push(`/match/${matchId}`);
-      }
-    });
-  }, [router]);
 
   useEffect(() => {
     if (!isInitialized) return;

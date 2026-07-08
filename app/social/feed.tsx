@@ -5,7 +5,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View }
 import { HighlightCard } from '@/components/community/CommunityComponents';
 import { Button } from '@/components/ui/Button';
 import { Colors, Spacing, Typography } from '@/constants/theme';
-import { fetchSocialPosts, likePost } from '@/services/social';
+import { fetchSocialPosts, likePost, subscribeToSocialPosts } from '@/services/social';
 import { useProfileStore } from '@/store/profileStore';
 import { SocialPost } from '@/types';
 
@@ -29,6 +29,13 @@ export default function SocialFeedScreen() {
 
   useEffect(() => {
     loadPosts().finally(() => setLoading(false));
+  }, [loadPosts]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToSocialPosts(() => {
+      loadPosts().catch(() => {});
+    });
+    return unsubscribe;
   }, [loadPosts]);
 
   const onRefresh = async () => {
