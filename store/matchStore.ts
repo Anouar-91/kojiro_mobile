@@ -5,7 +5,7 @@ import {
   fetchNotifications,
   markNotificationRead as markReadApi,
 } from '@/services/notifications';
-import { createMatch as createMatchApi, fetchMatches, upsertAttendance } from '@/services/matches';
+import { createMatch as createMatchApi, fetchMatches, removeAttendeeByOrganizer as removeAttendeeByOrganizerApi, upsertAttendance } from '@/services/matches';
 import { createNotification } from '@/services/notifications';
 import { AttendanceStatus, Match, MatchFormat, MatchVisibility, Notification } from '@/types';
 
@@ -35,6 +35,7 @@ interface MatchState {
   getMatch: (id: string) => Match | undefined;
   createMatch: (data: CreateMatchData, organizerId: string) => Promise<Match>;
   updateAttendance: (matchId: string, userId: string, status: AttendanceStatus) => Promise<void>;
+  removeAttendeeByOrganizer: (matchId: string, userId: string) => Promise<void>;
   setSelectedMatch: (id: string | null) => void;
   markNotificationRead: (id: string) => Promise<void>;
   unreadCount: () => number;
@@ -99,6 +100,19 @@ export const useMatchStore = create<MatchState>((set, get) => ({
           ? match.attendees.map((a) => (a.userId === userId ? { ...a, status } : a))
           : [...match.attendees, { userId, status }];
         return { ...match, attendees };
+      }),
+    }));
+  },
+
+  removeAttendeeByOrganizer: async (matchId, userId) => {
+    await removeAttendeeByOrganizerApi(matchId, userId);
+    set((state) => ({
+      matches: state.matches.map((match) => {
+        if (match.id !== matchId) return match;
+        return {
+          ...match,
+          attendees: match.attendees.filter((a) => a.userId !== userId),
+        };
       }),
     }));
   },

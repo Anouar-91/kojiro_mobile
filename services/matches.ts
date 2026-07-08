@@ -136,6 +136,14 @@ export async function upsertAttendance(
   if (error) throw new Error(error.message);
 }
 
+export async function removeAttendeeByOrganizer(matchId: string, userId: string): Promise<void> {
+  const { error } = await supabase.rpc('organizer_remove_attendee', {
+    p_match_id: matchId,
+    p_user_id: userId,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export interface PlayerMatchStat {
   userId: string;
   team: 'A' | 'B';

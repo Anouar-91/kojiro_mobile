@@ -71,9 +71,15 @@ interface AttendanceSectionProps {
   title: string;
   users: User[];
   statusColor: string;
+  onRemovePlayer?: (user: User) => void;
 }
 
-export function AttendanceSection({ title, users, statusColor }: AttendanceSectionProps) {
+export function AttendanceSection({
+  title,
+  users,
+  statusColor,
+  onRemovePlayer,
+}: AttendanceSectionProps) {
   if (users.length === 0) return null;
 
   return (
@@ -83,14 +89,36 @@ export function AttendanceSection({ title, users, statusColor }: AttendanceSecti
         <Text style={styles.attendanceTitle}>{title}</Text>
         <Text style={styles.attendanceCount}>{users.length}</Text>
       </View>
-      <View style={styles.avatarList}>
-        {users.map((user) => (
-          <View key={user.id} style={styles.avatarItem}>
-            <Avatar uri={user.avatar} size={36} name={user.name} showBorder />
-            <Text style={styles.avatarName} numberOfLines={1}>{user.name.split(' ')[0]}</Text>
-          </View>
-        ))}
-      </View>
+      {onRemovePlayer ? (
+        <View style={styles.manageList}>
+          {users.map((user, index) => (
+            <View key={user.id}>
+              {index > 0 && <View style={styles.playerDivider} />}
+              <PlayerRow
+                user={user}
+                rightElement={
+                  <Pressable
+                    onPress={() => onRemovePlayer(user)}
+                    style={styles.removeBtn}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="person-remove-outline" size={20} color={Colors.error} />
+                  </Pressable>
+                }
+              />
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={styles.avatarList}>
+          {users.map((user) => (
+            <View key={user.id} style={styles.avatarItem}>
+              <Avatar uri={user.avatar} size={36} name={user.name} showBorder />
+              <Text style={styles.avatarName} numberOfLines={1}>{user.name.split(' ')[0]}</Text>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -258,6 +286,16 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     marginTop: 4,
     textAlign: 'center',
+  },
+  manageList: {
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  removeBtn: {
+    padding: Spacing.sm,
   },
   actions: {
     flexDirection: 'row',

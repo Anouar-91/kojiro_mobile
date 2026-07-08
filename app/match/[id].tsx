@@ -17,7 +17,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
 import { useMatchStore } from '@/store/matchStore';
 import { getUsersByAttendance, useProfileStore } from '@/store/profileStore';
-import { AttendanceStatus } from '@/types';
+import { AttendanceStatus, User } from '@/types';
 import { formatMatchDate, formatPrice, getMatchFormatDescription } from '@/utils/formatters';
 import {
   canJoinWaitlist,
@@ -33,6 +33,7 @@ export default function MatchDetailScreen() {
   const user = useAuthStore((s) => s.user);
   const match = useMatchStore((s) => s.getMatch(id ?? ''));
   const updateAttendance = useMatchStore((s) => s.updateAttendance);
+  const removeAttendeeByOrganizer = useMatchStore((s) => s.removeAttendeeByOrganizer);
   const fetchMatches = useMatchStore((s) => s.fetchMatches);
   const getProfile = useProfileStore((s) => s.getProfile);
   const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
@@ -103,6 +104,30 @@ export default function MatchDetailScreen() {
     } catch (e) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de quitter la liste');
     }
+  };
+
+  const canManageRoster = isOrganizer && !isCompleted;
+  const handleRemovePlayer = (player: User) => {
+    if (!canManageRoster || player.id === match.organizerId) return;
+    Alert.alert(
+      'Retirer du match',
+      `Retirer ${player.name} de l'effectif ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Retirer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeAttendeeByOrganizer(match.id, player.id);
+              await fetchMatches(user?.id);
+            } catch (e) {
+              Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de retirer ce joueur');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleStartMatch = async () => {
@@ -218,15 +243,39 @@ export default function MatchDetailScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Participants</Text>
-        <AttendanceSection title="Présents" users={presentUsers} statusColor={Colors.success} />
+        {canManageRoster && (
+          <Text style={styles.manageHint}>Appuie sur l'icône pour retirer un joueur de l'effectif.</Text>
+        )}
+        <AttendanceSection
+          title="Présents"
+          users={presentUsers}
+          statusColor={Colors.success}
+          onRemovePlayer={canManageRoster ? handleRemovePlayer : undefined}
+        />
         <AttendanceSection
           title="Liste d'attente"
           users={getUsersByAttendance(match, 'waitlist', getProfile)}
           statusColor={Colors.primary}
+          onRemovePlayer={canManageRoster ? handleRemovePlayer : undefined}
         />
-        <AttendanceSection title="Invitations en attente" users={getUsersByAttendance(match, 'pending', getProfile)} statusColor={Colors.textMuted} />
-        <AttendanceSection title="Peut-être" users={maybeUsers} statusColor={Colors.warning} />
-        <AttendanceSection title="Absents" users={absentUsers} statusColor={Colors.error} />
+        <AttendanceSection
+          title="Invitations en attente"
+          users={getUsersByAttendance(match, 'pending', getProfile)}
+          statusColor={Colors.textMuted}
+          onRemovePlayer={canManageRoster ? handleRemovePlayer : undefined}
+        />
+        <AttendanceSection
+          title="Peut-être"
+          users={maybeUsers}
+          statusColor={Colors.warning}
+          onRemovePlayer={canManageRoster ? handleRemovePlayer : undefined}
+        />
+        <AttendanceSection
+          title="Absents"
+          users={absentUsers}
+          statusColor={Colors.error}
+          onRemovePlayer={canManageRoster ? handleRemovePlayer : undefined}
+        />
       </View>
 
       {match.description && (
@@ -319,6 +368,7 @@ const styles = StyleSheet.create({
   metaText: { ...Typography.caption, color: Colors.textSecondary },
   section: { paddingHorizontal: Spacing.xxl, marginBottom: Spacing.xl },
   sectionTitle: { ...Typography.h3, color: Colors.text, marginBottom: Spacing.md },
+  manageHint: { ...Typography.caption, color: Colors.textMuted, marginBottom: Spacing.md, fontStyle: 'italic' },
   description: { ...Typography.body, color: Colors.textSecondary, lineHeight: 22 },
   restricted: { ...Typography.body, color: Colors.textMuted, fontStyle: 'italic' },
   fullHint: { ...Typography.caption, color: Colors.warning, marginBottom: Spacing.sm },
