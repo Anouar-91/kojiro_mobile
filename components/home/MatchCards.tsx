@@ -10,6 +10,7 @@ import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useProfileStore } from '@/store/profileStore';
 import { Match } from '@/types';
 import { formatShortDate, getMatchFormatDescription } from '@/utils/formatters';
+import { isMatchFull } from '@/utils/matchAttendance';
 
 interface UpcomingMatchCardProps {
   match: Match;
@@ -19,6 +20,7 @@ interface UpcomingMatchCardProps {
 export function UpcomingMatchCard({ match, onPress }: UpcomingMatchCardProps) {
   const getProfile = useProfileStore((s) => s.getProfile);
   const presentCount = match.attendees.filter((a) => a.status === 'present').length;
+  const full = isMatchFull(match);
   const avatars = match.attendees
     .filter((a) => a.status === 'present')
     .slice(0, 5)
@@ -27,7 +29,10 @@ export function UpcomingMatchCard({ match, onPress }: UpcomingMatchCardProps) {
   return (
     <Card onPress={onPress} style={styles.card}>
       <View style={styles.header}>
-        <Badge label={getMatchFormatDescription(match.format, match.substitutesPerTeam)} variant="primary" />
+        <View style={styles.badges}>
+          <Badge label={getMatchFormatDescription(match.format, match.substitutesPerTeam)} variant="primary" />
+          {full && <Badge label="Complet" variant="secondary" />}
+        </View>
         <Text style={styles.date}>{formatShortDate(match.date)} · {match.time}</Text>
       </View>
       <Text style={styles.title}>{match.title}</Text>
@@ -81,6 +86,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.sm,
+  },
+  badges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
   },
   date: {
     ...Typography.caption,

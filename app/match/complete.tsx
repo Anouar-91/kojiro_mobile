@@ -15,6 +15,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { completeMatch, PlayerMatchStat } from '@/services/matches';
+import { fetchMatchComposition } from '@/services/composition';
 import { createNotification } from '@/services/notifications';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
@@ -53,11 +54,25 @@ export default function CompleteMatchScreen() {
   const [playerStats, setPlayerStats] = useState<PlayerFormStat[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const initStats = useCallback(() => {
+  const initStats = useCallback(async () => {
     if (!match) return;
     const players = getPresentUsersFromMatch(match, getProfile);
-    const balanced = balanceTeams(players);
     const teamMap = new Map<string, 'A' | 'B'>();
+
+    try {
+      const composition = await fetchMatchComposition(match.id);
+      if (composition?.lineups.length) {
+        composition.lineups.forEach((l) => teamMap.set(l.userId, l.teamSide));
+        const composedIds = new Set(composition.lineups.map((l) => l.userId));
+        const composedPlayers = players.filter((p) => composedIds.has(p.id));
+        setPlayerStats(initPlayerStats(composedPlayers.length > 0 ? composedPlayers : players, teamMap));
+        return;
+      }
+    } catch {
+      // fallback IA
+    }
+
+    const balanced = balanceTeams(players);
     balanced.teamA.forEach((p) => teamMap.set(p.user.id, 'A'));
     balanced.teamB.forEach((p) => teamMap.set(p.user.id, 'B'));
     setPlayerStats(initPlayerStats(players, teamMap));

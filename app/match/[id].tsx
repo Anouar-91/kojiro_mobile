@@ -1,19 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
+
+import { MatchOrganizerSteps } from '@/components/match/MatchOrganizerSteps';
+import { DevFillMatchPanel } from '@/components/dev/DevFillMatchPanel';
 
 import { Badge } from '@/components/ui/Badge';
 import { AttendanceActions, AttendanceSection } from '@/components/match/PlayerComponents';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { fetchMatchComposition, startMatch } from '@/services/composition';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
 import { useMatchStore } from '@/store/matchStore';
 import { getUsersByAttendance, useProfileStore } from '@/store/profileStore';
 import { AttendanceStatus } from '@/types';
 import { formatMatchDate, formatPrice, getMatchFormatDescription } from '@/utils/formatters';
+import { canSetPresent, isMatchFull } from '@/utils/matchAttendance';
 
 export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,8 +27,18 @@ export default function MatchDetailScreen() {
   const user = useAuthStore((s) => s.user);
   const match = useMatchStore((s) => s.getMatch(id ?? ''));
   const updateAttendance = useMatchStore((s) => s.updateAttendance);
+  const fetchMatches = useMatchStore((s) => s.fetchMatches);
   const getProfile = useProfileStore((s) => s.getProfile);
+  const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
   const isFriend = useFriendStore((s) => s.isFriend);
+  const [hasComposition, setHasComposition] = useState(false);
+
+  useEffect(() => {
+    if (!match) return;
+    fetchMatchComposition(match.id)
+      .then((c) => setHasComposition(Boolean(c?.validatedAt && (c.lineups.length ?? 0) > 0)))
+      .catch(() => setHasComposition(false));
+  }, [match?.id, match?.status]);
 
   if (!match) {
     return (
@@ -49,12 +65,24 @@ export default function MatchDetailScreen() {
 
   const isOrganizer = user?.id === match.organizerId;
   const isCompleted = match.status === 'completed';
+  const matchIsFull = isMatchFull(match);
+  const userCanSetPresent = user ? canSetPresent(match, user.id) : false;
   const isFriendsOnly = match.visibility === 'friends_only';
   const canJoin =
     !isFriendsOnly ||
     isOrganizer ||
     (user && isFriend(match.organizerId)) ||
     match.attendees.some((a) => a.userId === user?.id);
+
+  const handleStartMatch = async () => {
+    try {
+      await startMatch(match.id);
+      await fetchMatches(user?.id);
+      Alert.alert("C'est parti !", 'Le match est en cours. Bon jeu !');
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de démarrer');
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -68,6 +96,7 @@ export default function MatchDetailScreen() {
           {isFriendsOnly && <Badge label="Entre amis" variant="secondary" />}
           {isCompleted && <Badge label="Terminé" variant="success" />}
           {match.status === 'live' && <Badge label="En cours" variant="primary" />}
+          {matchIsFull && !isCompleted && <Badge label="Complet" variant="secondary" />}
         </View>
         <Text style={styles.title}>{match.title}</Text>
         <Text style={styles.date}>{formatMatchDate(match.date, match.time)}</Text>
@@ -92,6 +121,16 @@ export default function MatchDetailScreen() {
         </View>
       </View>
 
+      {isOrganizer && !isCompleted && (
+        <View style={styles.section}>
+          <MatchOrganizerSteps
+            match={match}
+            presentCount={presentUsers.length}
+            hasComposition={hasComposition}
+          />
+        </View>
+      )}
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Ma présence</Text>
         {!canJoin && !isOrganizer ? (
@@ -100,7 +139,14 @@ export default function MatchDetailScreen() {
           </Text>
         ) : (
           <>
-            <AttendanceActions currentStatus={myAttendance} onStatusChange={handleStatusChange} />
+            <AttendanceActions
+              currentStatus={myAttendance}
+              onStatusChange={handleStatusChange}
+              canSetPresent={userCanSetPresent}
+            />
+            {matchIsFull && myAttendance !== 'present' && (
+              <Text style={styles.fullHint}>Ce match est complet. Tu peux répondre « Peut-être » ou « Absent ».</Text>
+            )}
             <ProgressBar
               progress={presentUsers.length / match.maxPlayers}
               label={`${presentUsers.length}/${match.maxPlayers} confirmés`}
@@ -126,20 +172,35 @@ export default function MatchDetailScreen() {
       )}
 
       <View style={styles.actions}>
+        {isOrganizer && !isCompleted && match.status === 'upcoming' && hasComposition && (
+          <Button
+            title="Démarrer le match"
+            onPress={handleStartMatch}
+            icon="play-circle-outline"
+            fullWidth
+          />
+        )}
         {isOrganizer && !isCompleted && (
           <Button
             title="Terminer le match"
             onPress={() => router.push({ pathname: '/match/complete', params: { id: match.id } })}
             icon="flag-outline"
             fullWidth
+            variant={match.status === 'live' ? 'primary' : 'secondary'}
           />
         )}
         {!isCompleted && (
           <>
             <Button
-              title="Composer les équipes"
-              onPress={() => router.push({ pathname: '/match/teams', params: { id: match.id } })}
-              icon="shuffle-outline"
+              title={isOrganizer ? 'Composer les équipes' : 'Voir la composition'}
+              onPress={() =>
+                router.push(
+                  isOrganizer
+                    ? { pathname: '/match/teams', params: { id: match.id } }
+                    : { pathname: '/match/lineup', params: { id: match.id } }
+                )
+              }
+              icon="football-outline"
               fullWidth
             />
             <Button
@@ -158,6 +219,15 @@ export default function MatchDetailScreen() {
             variant="outline"
             icon="person-add-outline"
             fullWidth
+          />
+        )}
+        {__DEV__ && isOrganizer && !isCompleted && (
+          <DevFillMatchPanel
+            match={match}
+            onFilled={async () => {
+              await fetchMatches(user?.id);
+              await fetchProfiles();
+            }}
           />
         )}
       </View>
@@ -186,5 +256,6 @@ const styles = StyleSheet.create({
   sectionTitle: { ...Typography.h3, color: Colors.text, marginBottom: Spacing.md },
   description: { ...Typography.body, color: Colors.textSecondary, lineHeight: 22 },
   restricted: { ...Typography.body, color: Colors.textMuted, fontStyle: 'italic' },
+  fullHint: { ...Typography.caption, color: Colors.warning, marginBottom: Spacing.sm },
   actions: { paddingHorizontal: Spacing.xxl, gap: Spacing.md },
 });

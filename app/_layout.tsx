@@ -5,7 +5,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import 'react-native-reanimated';
 
 import { Colors } from '@/constants/theme';
 import { registerPushToken, setupNotificationListeners } from '@/services/push';
@@ -111,6 +110,7 @@ export default function RootLayout() {
             <Stack.Screen name="match/create" options={{ title: 'Créer un match', presentation: 'modal' }} />
             <Stack.Screen name="match/[id]" options={{ title: 'Détail du match' }} />
             <Stack.Screen name="match/teams" options={{ title: 'Composition des équipes' }} />
+            <Stack.Screen name="match/lineup" options={{ title: 'Formation' }} />
             <Stack.Screen name="match/chat" options={{ title: 'Chat du match' }} />
             <Stack.Screen name="match/complete" options={{ title: 'Terminer le match', presentation: 'modal' }} />
             <Stack.Screen name="match/invite" options={{ title: 'Inviter des joueurs' }} />

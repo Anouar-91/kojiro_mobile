@@ -2,6 +2,7 @@ import { mapDbMatchToMatch } from '@/lib/mappers';
 import { supabase } from '@/lib/supabase';
 import { fetchFriendIds } from '@/services/friends';
 import { AttendanceStatus, Match, MatchFormat, MatchVisibility } from '@/types';
+import { canSetPresent } from '@/utils/matchAttendance';
 
 const MATCH_SELECT = `
   *,
@@ -112,6 +113,10 @@ export async function upsertAttendance(
     if (!friendIds.includes(match.organizerId)) {
       throw new Error('Ce match est réservé aux amis de l\'organisateur');
     }
+  }
+
+  if (status === 'present' && match && !canSetPresent(match, userId)) {
+    throw new Error(`Ce match est complet (${match.maxPlayers} places)`);
   }
 
   const { error } = await supabase.from('match_attendees').upsert(

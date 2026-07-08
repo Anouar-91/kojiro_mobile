@@ -95,7 +95,13 @@ Exécute `supabase/migrations/009_friendships.sql` dans le SQL Editor.
 
 Exécute `supabase/migrations/010_profile_location.sql` pour stocker latitude/longitude sur les profils (carte et distances réelles).
 
-### 14. Relancer l'app
+### 14. Migration 011 (composition & formations)
+
+Exécute `supabase/migrations/011_match_composition.sql` pour les équipes, formations tactiques et démarrage de match.
+
+Voir le parcours complet : **`MATCH_ORGANIZATION.md`**
+
+### 15. Relancer l'app
 
 ```bash
 npm start

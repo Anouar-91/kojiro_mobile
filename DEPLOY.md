@@ -63,6 +63,7 @@ supabase/migrations/007_flexible_match_format.sql
 supabase/migrations/008_substitutes.sql
 supabase/migrations/009_friendships.sql
 supabase/migrations/010_profile_location.sql
+supabase/migrations/011_match_composition.sql
 ```
 
 ### Auth (développement)
@@ -388,6 +389,12 @@ npx tsc --noEmit
 - [ ] `npx eas submit --platform ios --latest`
 - [ ] Testeur interne ajouté dans TestFlight
 - [ ] App **TestFlight** installée sur l'iPhone
+
+---
+
+## Organisation d'un match
+
+Voir **`MATCH_ORGANIZATION.md`** pour le parcours complet (création → composition → fin de match).
 
 ---
 

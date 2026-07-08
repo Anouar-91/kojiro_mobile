@@ -98,9 +98,14 @@ export function AttendanceSection({ title, users, statusColor }: AttendanceSecti
 interface AttendanceActionsProps {
   currentStatus: string;
   onStatusChange: (status: 'present' | 'absent' | 'maybe') => void;
+  canSetPresent?: boolean;
 }
 
-export function AttendanceActions({ currentStatus, onStatusChange }: AttendanceActionsProps) {
+export function AttendanceActions({
+  currentStatus,
+  onStatusChange,
+  canSetPresent = true,
+}: AttendanceActionsProps) {
   const options = [
     { status: 'present' as const, label: 'Présent', icon: 'checkmark-circle', color: Colors.success },
     { status: 'maybe' as const, label: 'Peut-être', icon: 'help-circle', color: Colors.warning },
@@ -109,14 +114,19 @@ export function AttendanceActions({ currentStatus, onStatusChange }: AttendanceA
 
   return (
     <View style={styles.actions}>
-      {options.map((opt) => (
+      {options.map((opt) => {
+        const disabled = opt.status === 'present' && !canSetPresent && currentStatus !== 'present';
+        return (
         <Pressable
           key={opt.status}
           style={[
             styles.actionBtn,
             currentStatus === opt.status && { borderColor: opt.color, backgroundColor: `${opt.color}20` },
+            disabled && styles.actionBtnDisabled,
           ]}
+          disabled={disabled}
           onPress={() => {
+            if (disabled) return;
             Haptics.selectionAsync();
             onStatusChange(opt.status);
           }}
@@ -124,13 +134,20 @@ export function AttendanceActions({ currentStatus, onStatusChange }: AttendanceA
           <Ionicons
             name={opt.icon as keyof typeof Ionicons.glyphMap}
             size={22}
-            color={currentStatus === opt.status ? opt.color : Colors.textMuted}
+            color={disabled ? Colors.textMuted : currentStatus === opt.status ? opt.color : Colors.textMuted}
           />
-          <Text style={[styles.actionLabel, currentStatus === opt.status && { color: opt.color }]}>
+          <Text
+            style={[
+              styles.actionLabel,
+              currentStatus === opt.status && { color: opt.color },
+              disabled && styles.actionLabelDisabled,
+            ]}
+          >
             {opt.label}
           </Text>
         </Pressable>
-      ))}
+        );
+      })}
     </View>
   );
 }
@@ -256,10 +273,16 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     backgroundColor: Colors.surfaceElevated,
   },
+  actionBtnDisabled: {
+    opacity: 0.45,
+  },
   actionLabel: {
     ...Typography.small,
     color: Colors.textMuted,
     marginTop: 4,
     fontWeight: '600',
+  },
+  actionLabelDisabled: {
+    color: Colors.textMuted,
   },
 });
