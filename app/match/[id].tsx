@@ -21,11 +21,22 @@ import { AttendanceStatus, User } from '@/types';
 import { formatMatchDate, formatPrice, getMatchFormatDescription } from '@/utils/formatters';
 import {
   canJoinWaitlist,
+  canManageRoster as canOrganizerManageRoster,
+  canChangeAttendance,
   canSetPresent,
+  getAttendanceLockMessage,
   getWaitlistPosition,
   isMatchFull,
   isOnWaitlist,
 } from '@/utils/matchAttendance';
+
+const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
+  present: 'Présent',
+  absent: 'Absent',
+  maybe: 'Peut-être',
+  pending: 'Invitation en attente',
+  waitlist: 'Liste d\'attente',
+};
 
 export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -72,6 +83,7 @@ export default function MatchDetailScreen() {
 
   const isOrganizer = user?.id === match.organizerId;
   const isCompleted = match.status === 'completed';
+  const attendanceOpen = canChangeAttendance(match);
   const matchIsFull = isMatchFull(match);
   const userCanSetPresent = user ? canSetPresent(match, user.id) : false;
   const userOnWaitlist = user ? isOnWaitlist(match, user.id) : false;
@@ -106,7 +118,7 @@ export default function MatchDetailScreen() {
     }
   };
 
-  const canManageRoster = isOrganizer && !isCompleted;
+  const canManageRoster = canOrganizerManageRoster(match, isOrganizer);
   const handleRemovePlayer = (player: User) => {
     if (!canManageRoster || player.id === match.organizerId) return;
     Alert.alert(
@@ -193,6 +205,18 @@ export default function MatchDetailScreen() {
           <Text style={styles.restricted}>
             Match réservé aux amis de l'organisateur. Ajoute-le en ami pour participer.
           </Text>
+        ) : !attendanceOpen ? (
+          <>
+            <Text style={styles.lockedMessage}>{getAttendanceLockMessage(match.status)}</Text>
+            <Text style={styles.lockedStatus}>
+              Ta réponse : {ATTENDANCE_LABELS[myAttendance]}
+            </Text>
+            <ProgressBar
+              progress={presentUsers.length / match.maxPlayers}
+              label={`${presentUsers.length}/${match.maxPlayers} confirmés`}
+              showLabel
+            />
+          </>
         ) : (
           <>
             <AttendanceActions
@@ -326,7 +350,7 @@ export default function MatchDetailScreen() {
             />
           </>
         )}
-        {!isCompleted && (
+        {!isCompleted && match.status === 'upcoming' && (
           <Button
             title="Inviter des joueurs"
             onPress={() => router.push({ pathname: '/match/invite', params: { id: match.id } })}
@@ -335,7 +359,7 @@ export default function MatchDetailScreen() {
             fullWidth
           />
         )}
-        {__DEV__ && isOrganizer && !isCompleted && (
+        {__DEV__ && isOrganizer && match.status === 'upcoming' && (
           <DevFillMatchPanel
             match={match}
             onFilled={async () => {
@@ -371,6 +395,8 @@ const styles = StyleSheet.create({
   manageHint: { ...Typography.caption, color: Colors.textMuted, marginBottom: Spacing.md, fontStyle: 'italic' },
   description: { ...Typography.body, color: Colors.textSecondary, lineHeight: 22 },
   restricted: { ...Typography.body, color: Colors.textMuted, fontStyle: 'italic' },
+  lockedMessage: { ...Typography.body, color: Colors.textSecondary, marginBottom: Spacing.sm },
+  lockedStatus: { ...Typography.bodyBold, color: Colors.text, marginBottom: Spacing.md },
   fullHint: { ...Typography.caption, color: Colors.warning, marginBottom: Spacing.sm },
   waitlistBanner: {
     flexDirection: 'row',

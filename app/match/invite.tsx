@@ -18,6 +18,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { useProfileStore } from '@/store/profileStore';
 import { User } from '@/types';
+import { canChangeAttendance } from '@/utils/matchAttendance';
 
 export default function InvitePlayersScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -95,6 +96,14 @@ export default function InvitePlayersScreen() {
     return (
       <View style={styles.centered}>
         <Text style={styles.muted}>Seul l'organisateur peut inviter des joueurs.</Text>
+      </View>
+    );
+  }
+
+  if (!canChangeAttendance(match)) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.muted}>Ce match n'accepte plus d'invitations.</Text>
       </View>
     );
   }

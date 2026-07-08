@@ -45,9 +45,10 @@ export function isOnWaitlist(match: Pick<Match, 'attendees'>, userId: string): b
 }
 
 export function canJoinWaitlist(
-  match: Pick<Match, 'attendees' | 'maxPlayers'>,
+  match: Pick<Match, 'attendees' | 'maxPlayers' | 'status'>,
   userId: string
 ): boolean {
+  if (!canChangeAttendance(match)) return false;
   if (!isMatchFull(match)) return false;
   const mine = match.attendees.find((a) => a.userId === userId);
   if (mine?.status === 'present') return false;
@@ -62,4 +63,32 @@ export function isUserRegisteredForMatch(
   if (!userId) return false;
   const mine = match.attendees.find((a) => a.userId === userId);
   return Boolean(mine && mine.status !== 'absent');
+}
+
+export function isAttendanceLocked(match: Pick<Match, 'status'>): boolean {
+  return match.status === 'live' || match.status === 'completed' || match.status === 'cancelled';
+}
+
+export function canChangeAttendance(match: Pick<Match, 'status'>): boolean {
+  return match.status === 'upcoming';
+}
+
+export function getAttendanceLockMessage(status: Match['status']): string {
+  switch (status) {
+    case 'live':
+      return 'Les présences sont figées — le match est en cours.';
+    case 'completed':
+      return 'Match terminé — les présences ne peuvent plus être modifiées.';
+    case 'cancelled':
+      return 'Match annulé — les présences ne peuvent plus être modifiées.';
+    default:
+      return '';
+  }
+}
+
+export function canManageRoster(
+  match: Pick<Match, 'status'>,
+  isOrganizer: boolean
+): boolean {
+  return isOrganizer && match.status === 'upcoming';
 }

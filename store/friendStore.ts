@@ -2,10 +2,12 @@ import { create } from 'zustand';
 
 import {
   acceptFriendRequest,
+  cancelFriendRequest,
   declineFriendRequest,
   fetchFriendIds,
   fetchFriendRequests,
   getFriendshipState,
+  removeFriend as removeFriendApi,
   sendFriendRequest,
 } from '@/services/friends';
 import { createNotification } from '@/services/notifications';
@@ -19,8 +21,11 @@ interface FriendState {
   sendRequest: (fromUserId: string, toUserId: string, fromUserName: string) => Promise<void>;
   acceptRequest: (requestId: string) => Promise<void>;
   declineRequest: (requestId: string) => Promise<void>;
+  cancelRequest: (requestId: string) => Promise<void>;
+  removeFriend: (userId: string, friendUserId: string) => Promise<void>;
   isFriend: (userId: string) => boolean;
   getState: (userId: string, otherUserId: string) => ReturnType<typeof getFriendshipState>;
+  getRequestBetween: (userId: string, otherUserId: string) => FriendRequest | undefined;
   getIncomingRequests: (userId: string) => FriendRequest[];
 }
 
@@ -70,14 +75,35 @@ export const useFriendStore = create<FriendState>((set, get) => ({
   declineRequest: async (requestId) => {
     const request = get().requests.find((r) => r.id === requestId);
     await declineFriendRequest(requestId);
-    if (request) {
-      await get().fetchFriends(request.toUserId);
+    const userId = request?.toUserId ?? request?.fromUserId;
+    if (userId) {
+      await get().fetchFriends(userId);
     }
+  },
+
+  cancelRequest: async (requestId) => {
+    const request = get().requests.find((r) => r.id === requestId);
+    await cancelFriendRequest(requestId);
+    if (request) {
+      await get().fetchFriends(request.fromUserId);
+    }
+  },
+
+  removeFriend: async (userId, friendUserId) => {
+    await removeFriendApi(userId, friendUserId);
+    await get().fetchFriends(userId);
   },
 
   isFriend: (userId) => get().friendIds.includes(userId),
 
   getState: (userId, otherUserId) => getFriendshipState(userId, otherUserId, get().requests),
+
+  getRequestBetween: (userId, otherUserId) =>
+    get().requests.find(
+      (r) =>
+        (r.fromUserId === userId && r.toUserId === otherUserId) ||
+        (r.fromUserId === otherUserId && r.toUserId === userId)
+    ),
 
   getIncomingRequests: (userId) =>
     get().requests.filter((r) => r.toUserId === userId && r.status === 'pending'),

@@ -101,6 +101,34 @@ export async function declineFriendRequest(requestId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export async function cancelFriendRequest(requestId: string): Promise<void> {
+  const { error } = await supabase
+    .from('friend_requests')
+    .delete()
+    .eq('id', requestId)
+    .eq('status', 'pending');
+
+  if (error) throw new Error(error.message);
+}
+
+export async function removeFriend(userId: string, friendUserId: string): Promise<void> {
+  const { data: rows, error: fetchError } = await supabase
+    .from('friend_requests')
+    .select('id')
+    .eq('status', 'accepted')
+    .or(
+      `and(from_user_id.eq.${userId},to_user_id.eq.${friendUserId}),and(from_user_id.eq.${friendUserId},to_user_id.eq.${userId})`
+    );
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  const row = rows?.[0];
+  if (!row) throw new Error('Cette personne n\'est pas dans tes amis');
+
+  const { error } = await supabase.from('friend_requests').delete().eq('id', row.id);
+  if (error) throw new Error(error.message);
+}
+
 export type FriendshipState = 'none' | 'friends' | 'pending_sent' | 'pending_received';
 
 export function getFriendshipState(

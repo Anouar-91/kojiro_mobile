@@ -2,7 +2,7 @@ import { mapDbMatchToMatch } from '@/lib/mappers';
 import { supabase } from '@/lib/supabase';
 import { fetchFriendIds } from '@/services/friends';
 import { AttendanceStatus, Match, MatchFormat, MatchVisibility } from '@/types';
-import { canSetPresent, isMatchFull } from '@/utils/matchAttendance';
+import { canSetPresent, isAttendanceLocked, getAttendanceLockMessage, isMatchFull } from '@/utils/matchAttendance';
 
 const MATCH_SELECT = `
   *,
@@ -104,6 +104,9 @@ export async function upsertAttendance(
   status: AttendanceStatus
 ): Promise<void> {
   const match = await fetchMatchById(matchId);
+  if (match && isAttendanceLocked(match)) {
+    throw new Error(getAttendanceLockMessage(match.status));
+  }
   if (
     match?.visibility === 'friends_only' &&
     match.organizerId !== userId &&

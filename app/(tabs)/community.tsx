@@ -30,6 +30,10 @@ export default function CommunityScreen() {
   const getIncomingRequests = useFriendStore((s) => s.getIncomingRequests);
   const sendRequest = useFriendStore((s) => s.sendRequest);
   const acceptRequest = useFriendStore((s) => s.acceptRequest);
+  const declineRequest = useFriendStore((s) => s.declineRequest);
+  const cancelRequest = useFriendStore((s) => s.cancelRequest);
+  const removeFriend = useFriendStore((s) => s.removeFriend);
+  const getRequestBetween = useFriendStore((s) => s.getRequestBetween);
   const fetchFriends = useFriendStore((s) => s.fetchFriends);
 
   const [tab, setTab] = useState<Tab>('friends');
@@ -151,6 +155,58 @@ export default function CommunityScreen() {
     }
   };
 
+  const handleDecline = (requestId: string, name: string) => {
+    Alert.alert('Refuser la demande', `Refuser la demande de ${name} ?`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Refuser',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await declineRequest(requestId);
+          } catch (e) {
+            Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de refuser');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleRemoveFriend = (friend: User) => {
+    Alert.alert('Retirer des amis', `Retirer ${friend.name} de tes amis ?`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Retirer',
+        style: 'destructive',
+        onPress: async () => {
+          if (!user) return;
+          try {
+            await removeFriend(user.id, friend.id);
+          } catch (e) {
+            Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de retirer cet ami');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleCancelRequest = (requestId: string, name: string) => {
+    Alert.alert('Annuler la demande', `Annuler ta demande d'ami envoyée à ${name} ?`, [
+      { text: 'Non', style: 'cancel' },
+      {
+        text: 'Annuler la demande',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await cancelRequest(requestId);
+          } catch (e) {
+            Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'annuler');
+          }
+        },
+      },
+    ]);
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Text style={styles.title}>Communauté</Text>
@@ -197,6 +253,7 @@ export default function CommunityScreen() {
                       user={from}
                       friendState="pending_received"
                       onAccept={() => handleAccept(req.id, from.name)}
+                      onDecline={() => handleDecline(req.id, from.name)}
                     />
                   );
                 })}
@@ -212,7 +269,12 @@ export default function CommunityScreen() {
               <Text style={styles.empty}>Aucun ami trouvé pour « {search} »</Text>
             ) : (
               filteredFriends.map((player) => (
-                <PlayerListItem key={player.id} user={player} friendState="friends" />
+                <PlayerListItem
+                  key={player.id}
+                  user={player}
+                  friendState="friends"
+                  onRemove={() => handleRemoveFriend(player)}
+                />
               ))
             )}
           </>
@@ -230,15 +292,24 @@ export default function CommunityScreen() {
             ) : searchResults.length === 0 ? (
               <Text style={styles.empty}>Aucun joueur trouvé pour « {search} »</Text>
             ) : (
-              searchResults.map((player) => (
+              searchResults.map((player) => {
+                const state = user ? getFriendState(user.id, player.id) : 'none';
+                const request = user ? getRequestBetween(user.id, player.id) : undefined;
+                return (
                 <PlayerListItem
                   key={player.id}
                   user={player}
                   distance={player.city}
-                  friendState={user ? getFriendState(user.id, player.id) : 'none'}
+                  friendState={state}
                   onAdd={() => handleAddFriend(player)}
+                  onCancel={
+                    state === 'pending_sent' && request
+                      ? () => handleCancelRequest(request.id, player.name)
+                      : undefined
+                  }
                 />
-              ))
+                );
+              })
             )}
           </>
         )}

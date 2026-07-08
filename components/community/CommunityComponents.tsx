@@ -49,6 +49,9 @@ interface PlayerListItemProps {
   friendState?: 'none' | 'friends' | 'pending_sent' | 'pending_received';
   onAdd?: () => void;
   onAccept?: () => void;
+  onDecline?: () => void;
+  onRemove?: () => void;
+  onCancel?: () => void;
 }
 
 export function PlayerListItem({
@@ -59,6 +62,9 @@ export function PlayerListItem({
   friendState = 'none',
   onAdd,
   onAccept,
+  onDecline,
+  onRemove,
+  onCancel,
 }: PlayerListItemProps) {
   return (
     <View style={styles.listItem}>
@@ -73,20 +79,39 @@ export function PlayerListItem({
         </View>
       </View>
       {score !== undefined && <Text style={styles.score}>{score} XP</Text>}
-      {friendState === 'friends' && (
+      {friendState === 'friends' && onRemove && (
+        <Pressable onPress={onRemove} style={styles.removeBtn} accessibilityLabel="Retirer des amis">
+          <Ionicons name="person-remove-outline" size={18} color={Colors.error} />
+        </Pressable>
+      )}
+      {friendState === 'friends' && !onRemove && (
         <View style={styles.friendBadge}>
           <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
         </View>
       )}
-      {friendState === 'pending_sent' && (
+      {friendState === 'pending_sent' && onCancel && (
+        <Pressable onPress={onCancel} style={styles.declineBtn} accessibilityLabel="Annuler la demande">
+          <Ionicons name="close" size={18} color={Colors.error} />
+        </Pressable>
+      )}
+      {friendState === 'pending_sent' && !onCancel && (
         <View style={styles.friendBadge}>
           <Ionicons name="time-outline" size={18} color={Colors.textMuted} />
         </View>
       )}
-      {friendState === 'pending_received' && onAccept && (
-        <Pressable onPress={onAccept} style={styles.acceptBtn}>
-          <Ionicons name="checkmark" size={18} color={Colors.background} />
-        </Pressable>
+      {friendState === 'pending_received' && (onAccept || onDecline) && (
+        <View style={styles.actionRow}>
+          {onDecline && (
+            <Pressable onPress={onDecline} style={styles.declineBtn} accessibilityLabel="Refuser">
+              <Ionicons name="close" size={18} color={Colors.error} />
+            </Pressable>
+          )}
+          {onAccept && (
+            <Pressable onPress={onAccept} style={styles.acceptBtn} accessibilityLabel="Accepter">
+              <Ionicons name="checkmark" size={18} color={Colors.background} />
+            </Pressable>
+          )}
+        </View>
       )}
       {friendState === 'none' && onAdd && (
         <Pressable onPress={onAdd} style={styles.addBtn}>
@@ -230,6 +255,27 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  declineBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: `${Colors.error}20`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: `${Colors.error}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   highlight: {
     marginBottom: Spacing.lg,
