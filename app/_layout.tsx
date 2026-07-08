@@ -112,7 +112,7 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Accueil' }} />
             <Stack.Screen name="match/create" options={{ title: 'Créer un match', presentation: 'modal' }} />
             <Stack.Screen name="match/[id]" options={{ title: 'Détail du match' }} />
             <Stack.Screen name="match/teams" options={{ title: 'Composition des équipes' }} />
@@ -122,7 +122,11 @@ export default function RootLayout() {
             <Stack.Screen name="match/invite" options={{ title: 'Inviter des joueurs' }} />
             <Stack.Screen
               name="map/index"
-              options={{ title: 'Matchs à proximité', headerShown: true }}
+              options={{
+                title: 'Matchs à proximité',
+                headerShown: true,
+                headerBackButtonDisplayMode: 'minimal',
+              }}
             />
             <Stack.Screen name="profile/stats" options={{ title: 'Statistiques' }} />
             <Stack.Screen name="profile/history" options={{ title: 'Historique' }} />

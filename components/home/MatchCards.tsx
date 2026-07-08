@@ -9,15 +9,16 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useProfileStore } from '@/store/profileStore';
 import { Match } from '@/types';
-import { formatShortDate, getMatchFormatDescription } from '@/utils/formatters';
+import { formatShortDate, formatDistance, getMatchFormatDescription } from '@/utils/formatters';
 import { isMatchFull } from '@/utils/matchAttendance';
 
 interface UpcomingMatchCardProps {
   match: Match;
   onPress: () => void;
+  distance?: number;
 }
 
-export function UpcomingMatchCard({ match, onPress }: UpcomingMatchCardProps) {
+export function UpcomingMatchCard({ match, onPress, distance }: UpcomingMatchCardProps) {
   const getProfile = useProfileStore((s) => s.getProfile);
   const presentCount = match.attendees.filter((a) => a.status === 'present').length;
   const full = isMatchFull(match);
@@ -31,9 +32,16 @@ export function UpcomingMatchCard({ match, onPress }: UpcomingMatchCardProps) {
       <View style={styles.header}>
         <View style={styles.badges}>
           <Badge label={getMatchFormatDescription(match.format, match.substitutesPerTeam)} variant="primary" />
+          {match.status === 'live' && <Badge label="En cours" variant="warning" />}
+          {match.visibility === 'friends_only' && <Badge label="Amis" variant="secondary" />}
           {full && <Badge label="Complet" variant="secondary" />}
         </View>
-        <Text style={styles.date}>{formatShortDate(match.date)} · {match.time}</Text>
+        <View style={styles.metaRight}>
+          {distance != null && (
+            <Text style={styles.distance}>{formatDistance(distance)}</Text>
+          )}
+          <Text style={styles.date}>{formatShortDate(match.date)} · {match.time}</Text>
+        </View>
       </View>
       <Text style={styles.title}>{match.title}</Text>
       <View style={styles.locationRow}>
@@ -91,6 +99,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
+    flex: 1,
+    flexWrap: 'wrap',
+  },
+  metaRight: {
+    alignItems: 'flex-end',
+    marginLeft: Spacing.sm,
+  },
+  distance: {
+    ...Typography.small,
+    color: Colors.info,
+    fontWeight: '700',
+    marginBottom: 2,
   },
   date: {
     ...Typography.caption,

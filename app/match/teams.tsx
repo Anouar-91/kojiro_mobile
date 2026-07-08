@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { FormationPicker } from '@/components/match/FormationPicker';
@@ -60,6 +60,49 @@ function addPlayerToSlots(
   return next;
 }
 
+function syncRostersWithPresentPlayers(
+  teamAIds: string[],
+  teamBIds: string[],
+  presentIds: string[]
+): { teamAIds: string[]; teamBIds: string[]; changed: boolean } {
+  const presentSet = new Set(presentIds);
+  const filteredA = teamAIds.filter((id) => presentSet.has(id));
+  const filteredB = teamBIds.filter((id) => presentSet.has(id));
+  const assigned = new Set([...filteredA, ...filteredB]);
+  const missing = presentIds.filter((id) => !assigned.has(id));
+
+  if (
+    missing.length === 0 &&
+    filteredA.length === teamAIds.length &&
+    filteredB.length === teamBIds.length
+  ) {
+    return { teamAIds, teamBIds, changed: false };
+  }
+
+  const nextA = [...filteredA];
+  const nextB = [...filteredB];
+  for (const userId of missing) {
+    if (nextA.length <= nextB.length) nextA.push(userId);
+    else nextB.push(userId);
+  }
+  return { teamAIds: nextA, teamBIds: nextB, changed: true };
+}
+
+function removeAbsentFromSlots(
+  slots: Record<string, string>,
+  presentSet: Set<string>
+): Record<string, string> {
+  let changed = false;
+  const next = { ...slots };
+  for (const [slotId, userId] of Object.entries(next)) {
+    if (!presentSet.has(userId)) {
+      delete next[slotId];
+      changed = true;
+    }
+  }
+  return changed ? next : slots;
+}
+
 export default function TeamsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -83,6 +126,20 @@ export default function TeamsScreen() {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const rostersRef = useRef({ teamAIds, teamBIds });
+  rostersRef.current = { teamAIds, teamBIds };
+
+  const presentIdsKey = useMemo(
+    () =>
+      match
+        ? match.attendees
+            .filter((a) => a.status === 'present')
+            .map((a) => a.userId)
+            .sort()
+            .join(',')
+        : '',
+    [match?.attendees]
+  );
 
   const formationSlotsA = useMemo(
     () => buildFormationSlotsFromLayout(formationLayoutA),
@@ -166,7 +223,24 @@ export default function TeamsScreen() {
     return () => {
       active = false;
     };
-  }, [match, getProfile, initFromPlayers]);
+  }, [match?.id, getProfile, initFromPlayers]);
+
+  useEffect(() => {
+    if (loading || !match || !presentIdsKey) return;
+
+    const presentIds = presentIdsKey.split(',');
+    const presentSet = new Set(presentIds);
+    const { teamAIds: prevA, teamBIds: prevB } = rostersRef.current;
+    const synced = syncRostersWithPresentPlayers(prevA, prevB, presentIds);
+
+    if (synced.changed) {
+      setTeamAIds(synced.teamAIds);
+      setTeamBIds(synced.teamBIds);
+    }
+
+    setSlotsA((prev) => removeAbsentFromSlots(prev, presentSet));
+    setSlotsB((prev) => removeAbsentFromSlots(prev, presentSet));
+  }, [presentIdsKey, loading, match]);
 
   const handleFormationChange = (side: TeamSide, layout: FormationLayout) => {
     if (!match || !isValidFormation(layout, match.format)) return;

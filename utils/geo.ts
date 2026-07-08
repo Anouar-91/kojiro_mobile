@@ -6,6 +6,7 @@ const EARTH_RADIUS_KM = 6371;
 
 /** Rayon max pour les matchs « à proximité » (accueil + carte). */
 export const NEARBY_MATCH_RADIUS_KM = 10;
+export const WIDER_MATCH_RADIUS_KM = 25;
 
 export function distanceKm(
   from: { latitude: number; longitude: number },

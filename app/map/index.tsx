@@ -1,21 +1,24 @@
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { NearbyMatchCard } from '@/components/home/MatchCards';
 import { MatchMapView } from '@/components/map/MatchMapView';
+import { Chip } from '@/components/ui/Chip';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useCurrentLocation } from '@/hooks/useCurrentLocation';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
-import { Match } from '@/types';
+import { MATCH_FORMAT_PRESETS, Match } from '@/types';
 import { distanceKm } from '@/utils/geo';
 
 interface MatchWithDistance {
   match: Match;
   distance: number;
 }
+
+type FormatFilter = 'all' | number;
 
 export default function MapScreen() {
   const router = useRouter();
@@ -30,8 +33,20 @@ export default function MapScreen() {
     [allMatches]
   );
 
+  const [formatFilter, setFormatFilter] = useState<FormatFilter>('all');
   const [visibleMatchIds, setVisibleMatchIds] = useState<string[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const filteredMatches = useMemo(() => {
+    if (formatFilter === 'all') return upcomingMatches;
+    return upcomingMatches.filter((m) => m.format === formatFilter);
+  }, [upcomingMatches, formatFilter]);
+
+  useEffect(() => {
+    if (selectedId && !filteredMatches.some((m) => m.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [filteredMatches, selectedId]);
 
   const handleViewportChange = useCallback((ids: string[]) => {
     setVisibleMatchIds(ids);
@@ -40,32 +55,37 @@ export default function MapScreen() {
   const matchesInViewport = useMemo<MatchWithDistance[]>(() => {
     if (visibleMatchIds === null) return [];
 
-    return upcomingMatches
+    return filteredMatches
       .filter((m) => visibleMatchIds.includes(m.id))
       .map((match) => ({
         match,
         distance: distanceKm(userPosition, match.location),
       }))
       .sort((a, b) => a.distance - b.distance);
-  }, [upcomingMatches, visibleMatchIds, userPosition]);
+  }, [filteredMatches, visibleMatchIds, userPosition]);
 
   const displayed = useMemo(() => {
     if (selectedId) {
       const found = matchesInViewport.find((m) => m.match.id === selectedId);
       if (found) return [found];
-      const selected = upcomingMatches.find((m) => m.id === selectedId);
+      const selected = filteredMatches.find((m) => m.id === selectedId);
       if (selected) {
         return [{ match: selected, distance: distanceKm(userPosition, selected.location) }];
       }
       return matchesInViewport;
     }
     return matchesInViewport;
-  }, [matchesInViewport, selectedId, upcomingMatches, userPosition]);
+  }, [matchesInViewport, selectedId, filteredMatches, userPosition]);
+
+  const emptyMessage =
+    formatFilter === 'all'
+      ? 'Aucun match à venir dans cette zone. Déplace ou zoome la carte pour explorer.'
+      : `Aucun match ${formatFilter}v${formatFilter} dans cette zone. Change de filtre ou explore la carte.`;
 
   return (
     <View style={styles.container}>
       <MatchMapView
-        matches={upcomingMatches}
+        matches={filteredMatches}
         selectedId={selectedId}
         center={userPosition}
         onSelectMatch={setSelectedId}
@@ -73,6 +93,27 @@ export default function MapScreen() {
       />
 
       <View style={styles.listOverlay}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScroll}
+          style={styles.filterBar}
+        >
+          <Chip
+            label="Tous"
+            selected={formatFilter === 'all'}
+            onPress={() => setFormatFilter('all')}
+          />
+          {MATCH_FORMAT_PRESETS.map((n) => (
+            <Chip
+              key={n}
+              label={`${n}v${n}`}
+              selected={formatFilter === n}
+              onPress={() => setFormatFilter(n)}
+            />
+          ))}
+        </ScrollView>
+
         <View style={styles.listHeader}>
           <Text style={styles.listTitle}>
             {selectedId ? 'Match sélectionné' : 'Dans cette zone'}
@@ -86,9 +127,7 @@ export default function MapScreen() {
           </Pressable>
         </View>
         {displayed.length === 0 ? (
-          <Text style={styles.empty}>
-            Aucun match à venir dans cette zone. Déplace ou zoome la carte pour explorer.
-          </Text>
+          <Text style={styles.empty}>{emptyMessage}</Text>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {displayed.map(({ match, distance }) => (
@@ -129,7 +168,16 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 34 : Spacing.lg,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    maxHeight: '45%',
+    maxHeight: '50%',
+  },
+  filterBar: {
+    marginBottom: Spacing.sm,
+  },
+  filterScroll: {
+    paddingHorizontal: Spacing.xxl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   listTitle: {
     ...Typography.h3,
