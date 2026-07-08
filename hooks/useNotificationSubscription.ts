@@ -5,7 +5,10 @@ import { subscribeToNotifications } from '@/services/notifications';
 import { setAppBadgeCount, setupForegroundNotificationListener, setupNotificationListeners } from '@/services/push';
 import { useMatchStore } from '@/store/matchStore';
 
-export function useNotificationSubscription(userId: string | undefined, onOpenMatch?: (matchId: string) => void) {
+export function useNotificationSubscription(
+  userId: string | undefined,
+  onNotificationTap?: (data: Record<string, unknown>) => void
+) {
   const fetchNotifications = useMatchStore((s) => s.fetchNotifications);
   const fetchMatches = useMatchStore((s) => s.fetchMatches);
   const unreadCount = useMatchStore((s) => s.unreadCount);
@@ -22,10 +25,7 @@ export function useNotificationSubscription(userId: string | undefined, onOpenMa
     const unsubscribeRealtime = subscribeToNotifications(userId, refresh);
 
     const removeTapListener = setupNotificationListeners((data) => {
-      const matchId = data.matchId;
-      if (typeof matchId === 'string') {
-        onOpenMatch?.(matchId);
-      }
+      onNotificationTap?.(data);
       refresh();
     });
 
@@ -36,7 +36,7 @@ export function useNotificationSubscription(userId: string | undefined, onOpenMa
       removeTapListener();
       removeForegroundListener();
     };
-  }, [userId, fetchNotifications, fetchMatches, onOpenMatch]);
+  }, [userId, fetchNotifications, fetchMatches, onNotificationTap]);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;

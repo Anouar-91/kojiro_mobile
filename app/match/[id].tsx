@@ -12,6 +12,7 @@ import { AttendanceActions, AttendanceSection } from '@/components/match/PlayerC
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { useMatchChatUnread } from '@/hooks/useMatchChatUnread';
 import { fetchMatchComposition, startMatch } from '@/services/composition';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
@@ -50,6 +51,7 @@ export default function MatchDetailScreen() {
   const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
   const isFriend = useFriendStore((s) => s.isFriend);
   const [hasComposition, setHasComposition] = useState(false);
+  const { unreadCount: chatUnreadCount } = useMatchChatUnread(match?.id, user?.id);
 
   useEffect(() => {
     if (!match) return;
@@ -341,13 +343,22 @@ export default function MatchDetailScreen() {
               icon="football-outline"
               fullWidth
             />
-            <Button
-              title="Chat du match"
-              onPress={() => router.push({ pathname: '/match/chat', params: { id: match.id } })}
-              variant="secondary"
-              icon="chatbubbles-outline"
-              fullWidth
-            />
+            <View style={styles.chatBtnWrap}>
+              <Button
+                title="Chat du match"
+                onPress={() => router.push({ pathname: '/match/chat', params: { id: match.id } })}
+                variant="secondary"
+                icon="chatbubbles-outline"
+                fullWidth
+              />
+              {chatUnreadCount > 0 && (
+                <View style={styles.chatBadge}>
+                  <Text style={styles.chatBadgeText}>
+                    {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           </>
         )}
         {!isCompleted && match.status === 'upcoming' && (
@@ -412,4 +423,25 @@ const styles = StyleSheet.create({
   waitlistText: { ...Typography.caption, color: Colors.primary, fontWeight: '600', flex: 1 },
   waitlistBtn: { marginBottom: Spacing.sm },
   actions: { paddingHorizontal: Spacing.xxl, gap: Spacing.md },
+  chatBtnWrap: { position: 'relative', width: '100%' },
+  chatBadge: {
+    position: 'absolute',
+    top: -6,
+    right: 8,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    borderWidth: 2,
+    borderColor: Colors.background,
+  },
+  chatBadgeText: {
+    ...Typography.small,
+    color: Colors.text,
+    fontWeight: '700',
+    fontSize: 11,
+  },
 });

@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -14,8 +14,14 @@ import {
 
 import { ChatBubble } from '@/components/chat/ChatComponents';
 import { Colors, Spacing } from '@/constants/theme';
+import {
+  markChatNotificationsRead,
+  markChatRead,
+  setActiveChatMatchId,
+} from '@/services/chatReads';
 import { fetchProfile } from '@/services/profiles';
 import { fetchMessages, sendMessage, subscribeToMessages } from '@/services/messages';
+import { setSuppressChatBannerMatchId } from '@/services/push';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { ChatMessage, User } from '@/types';
@@ -29,6 +35,27 @@ export default function MatchChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const fetchNotifications = useMatchStore((s) => s.fetchNotifications);
+
+  const syncRead = useCallback(async () => {
+    if (!match || !user) return;
+    await markChatRead(match.id, user.id);
+    await markChatNotificationsRead(match.id, user.id).catch(() => {});
+    await fetchNotifications(user.id).catch(() => {});
+  }, [match, user, fetchNotifications]);
+
+  useEffect(() => {
+    if (!match) return;
+
+    setActiveChatMatchId(match.id);
+    setSuppressChatBannerMatchId(match.id);
+    syncRead();
+
+    return () => {
+      setActiveChatMatchId(null);
+      setSuppressChatBannerMatchId(null);
+    };
+  }, [match?.id, syncRead]);
 
   useEffect(() => {
     if (!match) return;
@@ -53,20 +80,23 @@ export default function MatchChatScreen() {
         if (active) setLoading(false);
       });
 
-    const channel = subscribeToMessages(match.id, (msg) => {
+    const unsubscribe = subscribeToMessages(match.id, (msg) => {
       setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
       if (msg.senderId !== 'system') {
         fetchProfile(msg.senderId).then((profile) => {
           if (profile) setSenders((prev) => ({ ...prev, [msg.senderId]: profile }));
         });
       }
+      if (user && msg.senderId !== user.id) {
+        syncRead();
+      }
     });
 
     return () => {
       active = false;
-      channel.unsubscribe();
+      unsubscribe();
     };
-  }, [match]);
+  }, [match, user, syncRead]);
 
   const handleSend = async () => {
     if (!input.trim() || !user || !match || sending) return;

@@ -31,8 +31,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const router = useRouter();
 
-  useNotificationSubscription(userId, (matchId) => {
-    router.push(`/match/${matchId}`);
+  useNotificationSubscription(userId, (data) => {
+    const matchId = data.matchId;
+    if (typeof matchId !== 'string') return;
+    const isChat = data.chat === 'true' || data.chat === true;
+    if (isChat) {
+      router.push({ pathname: '/match/chat', params: { id: matchId } });
+    } else {
+      router.push(`/match/${matchId}`);
+    }
   });
 
   useAppRealtime(userId);

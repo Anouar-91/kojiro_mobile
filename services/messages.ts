@@ -1,5 +1,34 @@
+import type { RealtimeChannel } from '@supabase/supabase-js';
+
 import { supabase } from '@/lib/supabase';
 import { ChatMessage } from '@/types';
+
+type MessageListener = (message: ChatMessage) => void;
+
+type MessageChannel = {
+  channel: RealtimeChannel;
+  listeners: Set<MessageListener>;
+};
+
+const messageChannels = new Map<string, MessageChannel>();
+
+function mapRowToMessage(m: {
+  id: string;
+  match_id: string;
+  sender_id: string | null;
+  content: string;
+  type: string;
+  created_at: string;
+}): ChatMessage {
+  return {
+    id: m.id,
+    chatId: m.match_id,
+    senderId: m.sender_id ?? 'system',
+    content: m.content,
+    timestamp: m.created_at,
+    type: m.type as ChatMessage['type'],
+  };
+}
 
 export async function fetchMessages(matchId: string): Promise<ChatMessage[]> {
   const { data, error } = await supabase
@@ -45,31 +74,47 @@ export async function sendMessage(
 
 export function subscribeToMessages(
   matchId: string,
-  onMessage: (message: ChatMessage) => void
-) {
-  return supabase
-    .channel(`messages:${matchId}`)
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'messages', filter: `match_id=eq.${matchId}` },
-      (payload) => {
-        const m = payload.new as {
-          id: string;
-          match_id: string;
-          sender_id: string;
-          content: string;
-          type: string;
-          created_at: string;
-        };
-        onMessage({
-          id: m.id,
-          chatId: m.match_id,
-          senderId: m.sender_id ?? 'system',
-          content: m.content,
-          timestamp: m.created_at,
-          type: m.type as ChatMessage['type'],
-        });
-      }
-    )
-    .subscribe();
+  onMessage: MessageListener
+): () => void {
+  let entry = messageChannels.get(matchId);
+
+  if (!entry) {
+    const listeners = new Set<MessageListener>();
+    const channel = supabase
+      .channel(`messages:${matchId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `match_id=eq.${matchId}` },
+        (payload) => {
+          const msg = mapRowToMessage(
+            payload.new as {
+              id: string;
+              match_id: string;
+              sender_id: string | null;
+              content: string;
+              type: string;
+              created_at: string;
+            }
+          );
+          listeners.forEach((listener) => listener(msg));
+        }
+      )
+      .subscribe();
+
+    entry = { channel, listeners };
+    messageChannels.set(matchId, entry);
+  }
+
+  entry.listeners.add(onMessage);
+
+  return () => {
+    const current = messageChannels.get(matchId);
+    if (!current) return;
+
+    current.listeners.delete(onMessage);
+    if (current.listeners.size === 0) {
+      supabase.removeChannel(current.channel);
+      messageChannels.delete(matchId);
+    }
+  };
 }

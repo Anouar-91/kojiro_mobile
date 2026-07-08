@@ -13,12 +13,16 @@ const NOTIF_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   friend_request: 'person-add-outline',
   match_reminder: 'alarm-outline',
   team_assigned: 'people-outline',
+  chat_message: 'chatbubbles-outline',
   social: 'heart-outline',
   tournament: 'trophy-outline',
 };
 
 function getNotificationRoute(notif: Notification): string | null {
   const matchId = notif.data?.matchId;
+  if (matchId && notif.type === 'chat_message') {
+    return `/match/chat?id=${matchId}`;
+  }
   if (matchId && (notif.type === 'match_invite' || notif.type === 'match_reminder' || notif.type === 'team_assigned' || notif.type === 'match_waitlist')) {
     return `/match/${matchId}`;
   }
@@ -36,7 +40,12 @@ export default function NotificationsScreen() {
   const handlePress = async (notif: Notification) => {
     if (!notif.read) await markRead(notif.id);
     const route = getNotificationRoute(notif);
-    if (route) router.push(route as `/match/${string}`);
+    if (!route) return;
+    if (notif.type === 'chat_message' && notif.data?.matchId) {
+      router.push({ pathname: '/match/chat', params: { id: notif.data.matchId } });
+      return;
+    }
+    router.push(route as `/match/${string}`);
   };
 
   return (

@@ -4,14 +4,36 @@ import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
 
+let suppressChatBannerMatchId: string | null = null;
+
+export function setSuppressChatBannerMatchId(matchId: string | null): void {
+  suppressChatBannerMatchId = matchId;
+}
+
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    const data = notification.request.content.data as Record<string, unknown> | undefined;
+    const matchId = typeof data?.matchId === 'string' ? data.matchId : null;
+    const isChat = data?.chat === 'true' || data?.chat === true;
+
+    if (isChat && matchId && suppressChatBannerMatchId === matchId) {
+      return {
+        shouldShowAlert: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: false,
+        shouldShowList: false,
+      };
+    }
+
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    };
+  },
 });
 
 export async function registerPushToken(userId: string): Promise<void> {

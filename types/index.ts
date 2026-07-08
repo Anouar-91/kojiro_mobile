@@ -138,7 +138,7 @@ export interface LeaderboardEntry {
 
 export interface Notification {
   id: string;
-  type: 'match_invite' | 'match_reminder' | 'match_waitlist' | 'team_assigned' | 'social' | 'tournament' | 'friend_request';
+  type: 'match_invite' | 'match_reminder' | 'match_waitlist' | 'team_assigned' | 'chat_message' | 'social' | 'tournament' | 'friend_request';
   title: string;
   body: string;
   read: boolean;
