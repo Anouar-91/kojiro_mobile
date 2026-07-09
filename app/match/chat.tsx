@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
@@ -21,8 +20,8 @@ import {
   markChatRead,
   setActiveChatMatchId,
 } from '@/services/chatReads';
-import { fetchProfile } from '@/services/profiles';
 import { fetchMessages, sendMessage, subscribeToMessages } from '@/services/messages';
+import { fetchProfile } from '@/services/profiles';
 import { setSuppressChatBannerMatchId } from '@/services/push';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
@@ -37,6 +36,7 @@ export default function MatchChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const fetchNotifications = useMatchStore((s) => s.fetchNotifications);
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const insets = useSafeAreaInsets();
@@ -109,17 +109,29 @@ export default function MatchChatScreen() {
   }, [match, user, syncRead]);
 
   useEffect(() => {
-    scrollToLatest(false);
-  }, [messages.length, scrollToLatest]);
-
-  useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const subscription = Keyboard.addListener(showEvent, (event) => {
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
       const delay = Platform.OS === 'ios' ? event.duration ?? 250 : 100;
       setTimeout(() => scrollToLatest(), delay);
     });
-    return () => subscription.remove();
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, [scrollToLatest]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToLatest(false);
+    }
+  }, [messages.length, scrollToLatest]);
 
   const handleSend = async () => {
     if (!input.trim() || !user || !match || sending) return;
@@ -143,23 +155,22 @@ export default function MatchChatScreen() {
     );
   }
 
+  const bottomInset = keyboardHeight > 0 ? keyboardHeight : insets.bottom;
+
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <View style={styles.container}>
       <FlatList
         ref={listRef}
         data={messages}
         keyExtractor={(item) => item.id}
-        style={styles.listFlex}
+        style={styles.list}
         contentContainerStyle={[
-          styles.list,
-          messages.length > 0 && styles.listWithMessages,
+          styles.listContent,
+          messages.length > 0 && styles.listContentFilled,
+          { paddingBottom: Spacing.md },
         ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        onContentSizeChange={() => scrollToLatest(false)}
         renderItem={({ item }) => {
           const sender = item.senderId === user?.id ? user : senders[item.senderId];
           return (
@@ -176,7 +187,7 @@ export default function MatchChatScreen() {
         }
       />
 
-      <View style={[styles.inputBar, { paddingBottom: Spacing.md + insets.bottom }]}>
+      <View style={[styles.inputBar, { paddingBottom: Spacing.md + bottomInset }]}>
         <TextInput
           style={styles.input}
           placeholder="Écrire un message..."
@@ -194,21 +205,22 @@ export default function MatchChatScreen() {
           )}
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
-  listFlex: { flex: 1 },
-  list: { padding: Spacing.lg, flexGrow: 1 },
-  listWithMessages: { justifyContent: 'flex-end' },
+  list: { flex: 1 },
+  listContent: { padding: Spacing.lg, flexGrow: 1 },
+  listContentFilled: { justifyContent: 'flex-end' },
   empty: { color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.xxxl },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     backgroundColor: Colors.surface,
