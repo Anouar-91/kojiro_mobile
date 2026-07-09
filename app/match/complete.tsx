@@ -21,6 +21,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { getPresentUsersFromMatch, useProfileStore } from '@/store/profileStore';
 import { User } from '@/types';
+import { isGuestPlayerId } from '@/utils/guestAttendees';
 import { balanceTeams } from '@/utils/teamBalancer';
 
 interface PlayerFormStat extends PlayerMatchStat {
@@ -134,11 +135,12 @@ export default function CompleteMatchScreen() {
 
     setLoading(true);
     try {
-      await completeMatch(match.id, scoreA, scoreB, playerStats);
+      const registeredStats = playerStats.filter((p) => !isGuestPlayerId(p.userId));
+      await completeMatch(match.id, scoreA, scoreB, registeredStats);
       const scoreLabel = `${scoreA} - ${scoreB}`;
 
       await Promise.all(
-        playerStats
+        registeredStats
           .filter((p) => p.userId !== user?.id)
           .map((p) =>
             createNotification(p.userId, {
@@ -154,7 +156,13 @@ export default function CompleteMatchScreen() {
       await fetchProfiles();
       await refreshProfile();
 
-      Alert.alert('Match terminé', 'Stats et historique mis à jour pour tous les joueurs.', [
+      const guestCount = playerStats.length - registeredStats.length;
+      const guestNote =
+        guestCount > 0
+          ? `\n\n${guestCount} joueur${guestCount > 1 ? 's' : ''} invité${guestCount > 1 ? 's' : ''} sans compte : stats non enregistrées.`
+          : '';
+
+      Alert.alert('Match terminé', `Stats et historique mis à jour pour les joueurs inscrits.${guestNote}`, [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (e) {
@@ -201,8 +209,13 @@ export default function CompleteMatchScreen() {
         playerStats.map((p) => (
           <View key={p.userId} style={styles.playerCard}>
             <View style={styles.playerHeader}>
-              <Avatar uri={getProfile(p.userId)?.avatar ?? ''} size={36} name={p.name} />
-              <Text style={styles.playerName} numberOfLines={1}>{p.name}</Text>
+              <Avatar uri={isGuestPlayerId(p.userId) ? '' : (getProfile(p.userId)?.avatar ?? '')} size={36} name={p.name} />
+              <View style={styles.playerNameWrap}>
+                <Text style={styles.playerName} numberOfLines={1}>{p.name}</Text>
+                {isGuestPlayerId(p.userId) && (
+                  <Text style={styles.guestHint}>Invité · stats non enregistrées</Text>
+                )}
+              </View>
               <View style={styles.teamToggle}>
                 {(['A', 'B'] as const).map((t) => (
                   <Pressable
@@ -328,6 +341,8 @@ const styles = StyleSheet.create({
   },
   playerHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md },
   playerName: { ...Typography.bodyBold, color: Colors.text, flex: 1, fontSize: 14 },
+  playerNameWrap: { flex: 1, minWidth: 0 },
+  guestHint: { ...Typography.caption, color: Colors.textMuted, marginTop: 2, fontSize: 11 },
   teamToggle: { flexDirection: 'row', gap: 4 },
   teamBtn: {
     width: 32,

@@ -381,7 +381,7 @@ export function getMatchById(id: string): Match | undefined {
 
 export function getMatchAttendees(match: Match): User[] {
   return match.attendees
-    .filter((a) => a.status === 'present')
-    .map((a) => getUserById(a.userId))
+    .filter((a) => a.status === 'present' && a.userId)
+    .map((a) => getUserById(a.userId!))
     .filter(Boolean) as User[];
 }

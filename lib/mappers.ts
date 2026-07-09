@@ -66,7 +66,9 @@ export function mapProfileToUser(profile: DbProfile): User {
 
 export function mapDbMatchToMatch(row: DbMatch): Match {
   const attendees: MatchAttendee[] = (row.match_attendees ?? []).map((a) => ({
-    userId: a.user_id,
+    id: a.id,
+    userId: a.user_id ?? undefined,
+    guestName: a.guest_name ?? undefined,
     status: a.status as MatchAttendee['status'],
     teamId: a.team_id ?? undefined,
     joinedAt: a.created_at,

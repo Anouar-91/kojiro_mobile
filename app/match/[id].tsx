@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 
 import { MatchOrganizerSteps } from '@/components/match/MatchOrganizerSteps';
+import { AddGuestPlayerModal } from '@/components/match/AddGuestPlayerModal';
 import { DevFillMatchPanel } from '@/components/dev/DevFillMatchPanel';
 
 import { Badge } from '@/components/ui/Badge';
@@ -30,6 +31,7 @@ import {
   isMatchFull,
   isOnWaitlist,
 } from '@/utils/matchAttendance';
+import { isGuestPlayerId, parseGuestPlayerId } from '@/utils/guestAttendees';
 
 const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
   present: 'Présent',
@@ -46,11 +48,14 @@ export default function MatchDetailScreen() {
   const match = useMatchStore((s) => s.getMatch(id ?? ''));
   const updateAttendance = useMatchStore((s) => s.updateAttendance);
   const removeAttendeeByOrganizer = useMatchStore((s) => s.removeAttendeeByOrganizer);
+  const addGuestToMatch = useMatchStore((s) => s.addGuestToMatch);
+  const removeAttendeeById = useMatchStore((s) => s.removeAttendeeById);
   const fetchMatches = useMatchStore((s) => s.fetchMatches);
   const getProfile = useProfileStore((s) => s.getProfile);
   const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
   const isFriend = useFriendStore((s) => s.isFriend);
   const [hasComposition, setHasComposition] = useState(false);
+  const [guestModalVisible, setGuestModalVisible] = useState(false);
   const { unreadCount: chatUnreadCount } = useMatchChatUnread(match?.id, user?.id);
 
   useEffect(() => {
@@ -133,7 +138,13 @@ export default function MatchDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await removeAttendeeByOrganizer(match.id, player.id);
+              if (player.isGuest || isGuestPlayerId(player.id)) {
+                const attendeeId = parseGuestPlayerId(player.id);
+                if (!attendeeId) return;
+                await removeAttendeeById(match.id, attendeeId);
+              } else {
+                await removeAttendeeByOrganizer(match.id, player.id);
+              }
               await fetchMatches(user?.id);
             } catch (e) {
               Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de retirer ce joueur');
@@ -142,6 +153,11 @@ export default function MatchDetailScreen() {
         },
       ]
     );
+  };
+
+  const handleAddGuest = async (guestName: string) => {
+    await addGuestToMatch(match.id, guestName);
+    await fetchMatches(user?.id);
   };
 
   const handleStartMatch = async () => {
@@ -362,14 +378,32 @@ export default function MatchDetailScreen() {
           </>
         )}
         {!isCompleted && match.status === 'upcoming' && (
-          <Button
-            title="Inviter des joueurs"
-            onPress={() => router.push({ pathname: '/match/invite', params: { id: match.id } })}
-            variant="outline"
-            icon="person-add-outline"
-            fullWidth
-          />
+          <>
+            <Button
+              title="Inviter des joueurs"
+              onPress={() => router.push({ pathname: '/match/invite', params: { id: match.id } })}
+              variant="outline"
+              icon="person-add-outline"
+              fullWidth
+            />
+            {isOrganizer && canManageRoster && (
+              <Button
+                title="Ajouter sans appli"
+                onPress={() => setGuestModalVisible(true)}
+                variant="outline"
+                icon="person-outline"
+                fullWidth
+              />
+            )}
+          </>
         )}
+        <AddGuestPlayerModal
+          visible={guestModalVisible}
+          onClose={() => setGuestModalVisible(false)}
+          onSubmit={handleAddGuest}
+          presentCount={presentUsers.length}
+          maxPlayers={match.maxPlayers}
+        />
         {__DEV__ && isOrganizer && match.status === 'upcoming' && (
           <DevFillMatchPanel
             match={match}

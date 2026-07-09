@@ -13,6 +13,8 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  /** Joueur ajouté manuellement par l'organisateur (sans compte Kojiro) */
+  isGuest?: boolean;
   avatar: string;
   position: Position;
   foot: Foot;
@@ -82,7 +84,9 @@ export interface Location {
 }
 
 export interface MatchAttendee {
-  userId: string;
+  id?: string;
+  userId?: string;
+  guestName?: string;
   status: AttendanceStatus;
   teamId?: string;
   joinedAt?: string;

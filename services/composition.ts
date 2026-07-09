@@ -1,3 +1,4 @@
+import { guestPlayerId, parseGuestPlayerId } from '@/utils/guestAttendees';
 import { supabase } from '@/lib/supabase';
 import { LineupPlacement, MatchComposition, TeamSide } from '@/types/lineup';
 
@@ -19,7 +20,7 @@ export async function fetchMatchComposition(matchId: string): Promise<MatchCompo
     formationB: meta?.formation_b ?? 'auto',
     validatedAt: meta?.validated_at ?? undefined,
     lineups: (lineupsRes.data ?? []).map((row) => ({
-      userId: row.user_id,
+      userId: row.user_id ?? guestPlayerId(row.attendee_id),
       teamSide: row.team_side as TeamSide,
       slotId: row.slot_id,
       posX: row.pos_x ?? undefined,
@@ -38,13 +39,25 @@ export async function saveMatchComposition(
     p_match_id: matchId,
     p_formation_a: formationA,
     p_formation_b: formationB,
-    p_lineups: lineups.map((l) => ({
-      user_id: l.userId,
-      team_side: l.teamSide,
-      slot_id: l.slotId ?? '',
-      pos_x: l.posX != null ? String(l.posX) : '',
-      pos_y: l.posY != null ? String(l.posY) : '',
-    })),
+    p_lineups: lineups.map((l) => {
+      const attendeeId = parseGuestPlayerId(l.userId);
+      if (attendeeId) {
+        return {
+          attendee_id: attendeeId,
+          team_side: l.teamSide,
+          slot_id: l.slotId ?? '',
+          pos_x: l.posX != null ? String(l.posX) : '',
+          pos_y: l.posY != null ? String(l.posY) : '',
+        };
+      }
+      return {
+        user_id: l.userId,
+        team_side: l.teamSide,
+        slot_id: l.slotId ?? '',
+        pos_x: l.posX != null ? String(l.posX) : '',
+        pos_y: l.posY != null ? String(l.posY) : '',
+      };
+    }),
   });
 
   if (error) throw new Error(error.message);

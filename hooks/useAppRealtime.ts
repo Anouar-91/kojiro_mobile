@@ -20,10 +20,12 @@ export function useAppRealtime(userId: string | undefined) {
     const unsubAttendees = subscribeToMatchAttendees({
       onUpsert: (row) => {
         syncAttendee(row);
-        ensureProfile(row.user_id).catch(() => {});
+        if (row.user_id) {
+          ensureProfile(row.user_id).catch(() => {});
+        }
       },
       onDelete: (row) => {
-        removeAttendee(row.match_id, row.user_id);
+        removeAttendee(row.match_id, row.attendee_id);
       },
     });
 

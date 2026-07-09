@@ -1,7 +1,7 @@
 import { AttendanceStatus, Match } from '@/types';
 
 export function countPresentAttendees(
-  attendees: { userId: string; status: AttendanceStatus }[]
+  attendees: { status: AttendanceStatus }[]
 ): number {
   return attendees.filter((a) => a.status === 'present').length;
 }

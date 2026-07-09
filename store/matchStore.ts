@@ -5,7 +5,7 @@ import {
   fetchNotifications,
   markNotificationRead as markReadApi,
 } from '@/services/notifications';
-import { createMatch as createMatchApi, fetchMatchById, fetchMatches, removeAttendeeByOrganizer as removeAttendeeByOrganizerApi, RealtimeAttendeeRow, upsertAttendance } from '@/services/matches';
+import { createMatch as createMatchApi, fetchMatchById, fetchMatches, addGuestToMatch as addGuestToMatchApi, removeAttendeeById as removeAttendeeByIdApi, removeAttendeeByOrganizer as removeAttendeeByOrganizerApi, RealtimeAttendeeRow, upsertAttendance } from '@/services/matches';
 import { createNotification } from '@/services/notifications';
 import { AttendanceStatus, Match, MatchAttendee, MatchFormat, MatchVisibility, Notification } from '@/types';
 
@@ -36,8 +36,10 @@ interface MatchState {
   createMatch: (data: CreateMatchData, organizerId: string) => Promise<Match>;
   updateAttendance: (matchId: string, userId: string, status: AttendanceStatus) => Promise<void>;
   removeAttendeeByOrganizer: (matchId: string, userId: string) => Promise<void>;
+  addGuestToMatch: (matchId: string, guestName: string) => Promise<void>;
+  removeAttendeeById: (matchId: string, attendeeId: string) => Promise<void>;
   syncAttendeeFromRealtime: (row: RealtimeAttendeeRow) => void;
-  removeAttendeeFromRealtime: (matchId: string, userId: string) => void;
+  removeAttendeeFromRealtime: (matchId: string, attendeeId: string) => void;
   removeMatchFromRealtime: (matchId: string) => void;
   refreshMatch: (matchId: string) => Promise<void>;
   setSelectedMatch: (id: string | null) => void;
@@ -121,9 +123,46 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     }));
   },
 
+  addGuestToMatch: async (matchId, guestName) => {
+    const attendeeId = await addGuestToMatchApi(matchId, guestName);
+    set((state) => ({
+      matches: state.matches.map((match) => {
+        if (match.id !== matchId) return match;
+        const exists = match.attendees.some((a) => a.id === attendeeId);
+        if (exists) return match;
+        return {
+          ...match,
+          attendees: [
+            ...match.attendees,
+            {
+              id: attendeeId,
+              guestName: guestName.trim(),
+              status: 'present' as const,
+            },
+          ],
+        };
+      }),
+    }));
+  },
+
+  removeAttendeeById: async (matchId, attendeeId) => {
+    await removeAttendeeByIdApi(attendeeId);
+    set((state) => ({
+      matches: state.matches.map((match) => {
+        if (match.id !== matchId) return match;
+        return {
+          ...match,
+          attendees: match.attendees.filter((a) => a.id !== attendeeId),
+        };
+      }),
+    }));
+  },
+
   syncAttendeeFromRealtime: (row) => {
     const attendee: MatchAttendee = {
-      userId: row.user_id,
+      id: row.id,
+      userId: row.user_id ?? undefined,
+      guestName: row.guest_name ?? undefined,
       status: row.status as AttendanceStatus,
       teamId: row.team_id ?? undefined,
       joinedAt: row.created_at,
@@ -132,22 +171,22 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     set((state) => ({
       matches: state.matches.map((match) => {
         if (match.id !== row.match_id) return match;
-        const existing = match.attendees.find((a) => a.userId === row.user_id);
+        const existing = match.attendees.find((a) => a.id === row.id);
         const attendees = existing
-          ? match.attendees.map((a) => (a.userId === row.user_id ? attendee : a))
+          ? match.attendees.map((a) => (a.id === row.id ? attendee : a))
           : [...match.attendees, attendee];
         return { ...match, attendees };
       }),
     }));
   },
 
-  removeAttendeeFromRealtime: (matchId, userId) => {
+  removeAttendeeFromRealtime: (matchId, attendeeId) => {
     set((state) => ({
       matches: state.matches.map((match) => {
         if (match.id !== matchId) return match;
         return {
           ...match,
-          attendees: match.attendees.filter((a) => a.userId !== userId),
+          attendees: match.attendees.filter((a) => a.id !== attendeeId),
         };
       }),
     }));

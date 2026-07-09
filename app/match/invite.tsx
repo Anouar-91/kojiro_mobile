@@ -39,7 +39,7 @@ export default function InvitePlayersScreen() {
   }, [fetchProfiles]);
 
   const attendeeIds = useMemo(
-    () => new Set(match?.attendees.map((a) => a.userId) ?? []),
+    () => new Set(match?.attendees.filter((a) => a.userId).map((a) => a.userId!) ?? []),
     [match]
   );
 

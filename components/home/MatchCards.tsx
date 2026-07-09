@@ -10,6 +10,7 @@ import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useProfileStore } from '@/store/profileStore';
 import { Match } from '@/types';
 import { formatShortDate, formatDistance, getMatchFormatDescription } from '@/utils/formatters';
+import { attendeeToDisplayUser } from '@/utils/guestAttendees';
 import { isMatchFull } from '@/utils/matchAttendance';
 
 interface UpcomingMatchCardProps {
@@ -25,7 +26,7 @@ export function UpcomingMatchCard({ match, onPress, distance }: UpcomingMatchCar
   const avatars = match.attendees
     .filter((a) => a.status === 'present')
     .slice(0, 5)
-    .map((a) => getProfile(a.userId)?.avatar ?? '');
+    .map((a) => attendeeToDisplayUser(a, getProfile)?.avatar ?? '');
 
   return (
     <Card onPress={onPress} style={styles.card}>
@@ -76,7 +77,7 @@ export function NearbyMatchCard({ match, distance, onPress }: NearbyMatchCardPro
       <View style={styles.nearbyContent}>
         <View style={styles.nearbyHeader}>
           <Badge label={getMatchFormatDescription(match.format, match.substitutesPerTeam)} />
-          <Text style={styles.distance}>{distance.toFixed(1)} km</Text>
+          <Text style={styles.nearbyDistance}>{distance.toFixed(1)} km</Text>
         </View>
         <Text style={styles.nearbyTitle} numberOfLines={1}>{match.location.name}</Text>
         <Text style={styles.nearbyMeta}>{match.time} · {presentCount}/{match.maxPlayers} joueurs</Text>
@@ -164,7 +165,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 4,
   },
-  distance: {
+  nearbyDistance: {
     ...Typography.small,
     color: Colors.info,
     fontWeight: '600',

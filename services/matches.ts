@@ -6,7 +6,7 @@ import { canSetPresent, isAttendanceLocked, getAttendanceLockMessage, isMatchFul
 
 const MATCH_SELECT = `
   *,
-  match_attendees ( id, match_id, user_id, status, team_id, created_at )
+  match_attendees ( id, match_id, user_id, guest_name, status, team_id, created_at )
 `;
 
 export async function fetchMatches(userId?: string): Promise<Match[]> {
@@ -147,6 +147,22 @@ export async function removeAttendeeByOrganizer(matchId: string, userId: string)
   if (error) throw new Error(error.message);
 }
 
+export async function addGuestToMatch(matchId: string, guestName: string): Promise<string> {
+  const { data, error } = await supabase.rpc('organizer_add_guest', {
+    p_match_id: matchId,
+    p_guest_name: guestName.trim(),
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+export async function removeAttendeeById(attendeeId: string): Promise<void> {
+  const { error } = await supabase.rpc('organizer_remove_attendee_by_id', {
+    p_attendee_id: attendeeId,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export interface PlayerMatchStat {
   userId: string;
   team: 'A' | 'B';
@@ -182,8 +198,10 @@ export async function completeMatch(
 }
 
 export interface RealtimeAttendeeRow {
+  id: string;
   match_id: string;
-  user_id: string;
+  user_id: string | null;
+  guest_name?: string | null;
   status: string;
   team_id?: string | null;
   created_at: string;
@@ -191,7 +209,7 @@ export interface RealtimeAttendeeRow {
 
 export function subscribeToMatchAttendees(callbacks: {
   onUpsert: (row: RealtimeAttendeeRow) => void;
-  onDelete: (row: { match_id: string; user_id: string }) => void;
+  onDelete: (row: { match_id: string; attendee_id: string }) => void;
 }): () => void {
   const channel = supabase
     .channel('realtime:match_attendees')
@@ -210,8 +228,8 @@ export function subscribeToMatchAttendees(callbacks: {
       { event: 'DELETE', schema: 'public', table: 'match_attendees' },
       (payload) => {
         const old = payload.old as Partial<RealtimeAttendeeRow>;
-        if (old.match_id && old.user_id) {
-          callbacks.onDelete({ match_id: old.match_id, user_id: old.user_id });
+        if (old.match_id && old.id) {
+          callbacks.onDelete({ match_id: old.match_id, attendee_id: old.id });
         }
       }
     )

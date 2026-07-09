@@ -23,11 +23,14 @@ export function PlayerRow({ user, skillScore, showSkill = false, rightElement }:
     <View style={styles.row}>
       <Avatar uri={user.avatar} size={36} name={user.name} />
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
-          {user.name}
-        </Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
+            {user.name}
+          </Text>
+          {user.isGuest && <Badge label="Invité" variant="secondary" />}
+        </View>
         <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
-          {getPositionLabel(user.position)} · Niv. {user.level}
+          {user.isGuest ? 'Sans compte Kojiro' : `${getPositionLabel(user.position)} · Niv. ${user.level}`}
         </Text>
       </View>
       {showSkill && (
@@ -190,6 +193,12 @@ const styles = StyleSheet.create({
   info: {
     flex: 1,
     minWidth: 0,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    flexWrap: 'wrap',
   },
   name: {
     ...Typography.bodyBold,

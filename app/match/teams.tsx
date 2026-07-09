@@ -30,6 +30,7 @@ import {
   parseFormationLabel,
   pruneSlotAssignments,
 } from '@/utils/formations';
+import { getAttendeeParticipantId, resolveParticipantUser } from '@/utils/guestAttendees';
 import { balanceTeams } from '@/utils/teamBalancer';
 
 type Step = 'teams' | 'formation-a' | 'formation-b' | 'review';
@@ -134,7 +135,7 @@ export default function TeamsScreen() {
       match
         ? match.attendees
             .filter((a) => a.status === 'present')
-            .map((a) => a.userId)
+            .map((a) => getAttendeeParticipantId(a))
             .sort()
             .join(',')
         : '',
@@ -291,8 +292,10 @@ export default function TeamsScreen() {
     );
   }
 
-  const playersA = teamAIds.map((uid) => getProfile(uid)).filter(Boolean) as User[];
-  const playersB = teamBIds.map((uid) => getProfile(uid)).filter(Boolean) as User[];
+  const resolveUser = (id: string) => resolveParticipantUser(id, match, getProfile);
+
+  const playersA = teamAIds.map(resolveUser).filter(Boolean) as User[];
+  const playersB = teamBIds.map(resolveUser).filter(Boolean) as User[];
   const allPresent = getPresentUsersFromMatch(match, getProfile);
 
   const moveToTeam = (userId: string, target: TeamSide) => {
@@ -445,7 +448,7 @@ export default function TeamsScreen() {
                 title="Équipe A"
                 color={Colors.primary}
                 userIds={teamAIds}
-                getProfile={getProfile}
+                resolveUser={resolveUser}
                 onMove={(uid) => moveToTeam(uid, 'B')}
                 moveIcon="arrow-forward"
               />
@@ -453,7 +456,7 @@ export default function TeamsScreen() {
                 title="Équipe B"
                 color={Colors.info}
                 userIds={teamBIds}
-                getProfile={getProfile}
+                resolveUser={resolveUser}
                 onMove={(uid) => moveToTeam(uid, 'A')}
                 moveIcon="arrow-back"
               />
@@ -561,14 +564,14 @@ function TeamList({
   title,
   color,
   userIds,
-  getProfile,
+  resolveUser,
   onMove,
   moveIcon,
 }: {
   title: string;
   color: string;
   userIds: string[];
-  getProfile: (id: string) => User | undefined;
+  resolveUser: (id: string) => User | null;
   onMove: (userId: string) => void;
   moveIcon: keyof typeof Ionicons.glyphMap;
 }) {
@@ -576,7 +579,7 @@ function TeamList({
     <View style={[styles.teamCol, { borderColor: `${color}50` }]}>
       <Text style={[styles.teamColTitle, { color }]}>{title}</Text>
       {userIds.map((uid) => {
-        const p = getProfile(uid);
+        const p = resolveUser(uid);
         if (!p) return null;
         return (
           <View key={uid} style={styles.teamRow}>

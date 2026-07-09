@@ -101,7 +101,11 @@ Exécute `supabase/migrations/011_match_composition.sql` pour les équipes, form
 
 Voir le parcours complet : **`MATCH_ORGANIZATION.md`**
 
-### 15. Relancer l'app
+### 15. Migration 023 (joueurs invités sans appli)
+
+Exécute `supabase/migrations/023_match_guest_attendees.sql` pour permettre à l'organisateur d'ajouter manuellement des joueurs sans compte Kojiro.
+
+### 16. Relancer l'app
 
 ```bash
 npm start

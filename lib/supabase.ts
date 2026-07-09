@@ -75,7 +75,8 @@ export type DbMatch = {
 export type DbAttendee = {
   id: string;
   match_id: string;
-  user_id: string;
+  user_id: string | null;
+  guest_name: string | null;
   status: string;
   team_id: string | null;
   created_at?: string;

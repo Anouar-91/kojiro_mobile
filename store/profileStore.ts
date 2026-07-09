@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import { fetchAllProfiles, fetchProfile } from '@/services/profiles';
 import { Match, User } from '@/types';
+import { attendeeToDisplayUser } from '@/utils/guestAttendees';
 
 interface ProfileState {
   profiles: User[];
@@ -46,7 +47,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 export function getPresentUsersFromMatch(match: Match, getProfile: (id: string) => User | undefined): User[] {
   return match.attendees
     .filter((a) => a.status === 'present')
-    .map((a) => getProfile(a.userId))
+    .map((a) => attendeeToDisplayUser(a, getProfile))
     .filter(Boolean) as User[];
 }
 
@@ -66,5 +67,5 @@ export function getUsersByAttendance(
           })
       : match.attendees.filter((a) => a.status === status);
 
-  return attendees.map((a) => getProfile(a.userId)).filter(Boolean) as User[];
+  return attendees.map((a) => attendeeToDisplayUser(a, getProfile)).filter(Boolean) as User[];
 }
