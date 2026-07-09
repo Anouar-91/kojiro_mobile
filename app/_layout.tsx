@@ -35,8 +35,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     const matchId = data.matchId;
     if (typeof matchId !== 'string') return;
     const isChat = data.chat === 'true' || data.chat === true;
+    const isRecap = data.recap === 'true' || data.recap === true;
     if (isChat) {
       router.push({ pathname: '/match/chat', params: { id: matchId } });
+    } else if (isRecap) {
+      router.push({ pathname: '/match/recap', params: { id: matchId } });
     } else {
       router.push(`/match/${matchId}`);
     }
@@ -119,6 +122,7 @@ export default function RootLayout() {
             <Stack.Screen name="match/lineup" options={{ title: 'Formation' }} />
             <Stack.Screen name="match/chat" options={{ title: 'Chat du match' }} />
             <Stack.Screen name="match/complete" options={{ title: 'Terminer le match', presentation: 'modal' }} />
+            <Stack.Screen name="match/recap" options={{ title: 'Résumé du match' }} />
             <Stack.Screen name="match/invite" options={{ title: 'Inviter des joueurs' }} />
             <Stack.Screen
               name="map/index"

@@ -21,6 +21,19 @@ export function getAttendeeParticipantId(attendee: MatchAttendee): string {
   throw new Error('Participant invalide');
 }
 
+export function uniqueParticipantIds(ids: string[]): string[] {
+  return [...new Set(ids)];
+}
+
+export function uniqueUsersById(users: User[]): User[] {
+  const seen = new Set<string>();
+  return users.filter((user) => {
+    if (seen.has(user.id)) return false;
+    seen.add(user.id);
+    return true;
+  });
+}
+
 export function buildGuestUser(attendee: MatchAttendee): User | null {
   if (!attendee.guestName || !attendee.id) return null;
 

@@ -14,7 +14,7 @@ import {
   getDefaultFormation,
   parseFormationLabel,
 } from '@/utils/formations';
-import { buildGuestUser, isGuestPlayerId, parseGuestPlayerId } from '@/utils/guestAttendees';
+import { buildGuestUser, isGuestPlayerId, parseGuestPlayerId, uniqueUsersById } from '@/utils/guestAttendees';
 
 export default function LineupScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -75,17 +75,19 @@ export default function LineupScreen() {
   }
 
   const playersForSide = (side: 'A' | 'B'): User[] =>
-    composition.lineups
-      .filter((l) => l.teamSide === side)
-      .map((l) => {
-        if (isGuestPlayerId(l.userId)) {
-          const attendeeId = parseGuestPlayerId(l.userId);
-          const attendee = match.attendees.find((a) => a.id === attendeeId);
-          return attendee ? buildGuestUser(attendee) : null;
-        }
-        return getProfile(l.userId) ?? null;
-      })
-      .filter(Boolean) as User[];
+    uniqueUsersById(
+      composition.lineups
+        .filter((l) => l.teamSide === side)
+        .map((l) => {
+          if (isGuestPlayerId(l.userId)) {
+            const attendeeId = parseGuestPlayerId(l.userId);
+            const attendee = match.attendees.find((a) => a.id === attendeeId);
+            return attendee ? buildGuestUser(attendee) : null;
+          }
+          return getProfile(l.userId) ?? null;
+        })
+        .filter(Boolean) as User[]
+    );
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>

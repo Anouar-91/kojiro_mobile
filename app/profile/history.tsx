@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Badge } from '@/components/ui/Badge';
 import { Colors, Spacing, Typography } from '@/constants/theme';
@@ -10,6 +11,7 @@ import { MatchHistory } from '@/types';
 import { formatShortDate } from '@/utils/formatters';
 
 export default function HistoryScreen() {
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const [history, setHistory] = useState<MatchHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +55,15 @@ export default function HistoryScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {history.map((item) => (
-        <View key={item.id} style={styles.card}>
+        <Pressable
+          key={item.id}
+          style={styles.card}
+          onPress={() => {
+            if (item.matchId) {
+              router.push({ pathname: '/match/recap', params: { id: item.matchId } });
+            }
+          }}
+        >
           <View style={styles.cardHeader}>
             <Text style={styles.date}>{formatShortDate(item.date)}</Text>
             {item.mvp && <Badge label="MVP" variant="primary" />}
@@ -90,7 +100,7 @@ export default function HistoryScreen() {
               </Text>
             </View>
           </View>
-        </View>
+        </Pressable>
       ))}
     </ScrollView>
   );

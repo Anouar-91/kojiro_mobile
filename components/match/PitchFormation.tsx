@@ -33,13 +33,21 @@ export function PitchFormation({
 }: PitchFormationProps) {
   const benchPlayers = useMemo(() => {
     const assigned = new Set(Object.values(slotAssignments));
-    return players.filter((p) => !assigned.has(p.id));
+    const seen = new Set<string>();
+    return players.filter((p) => {
+      if (assigned.has(p.id) || seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
   }, [players, slotAssignments]);
 
-  const userById = useMemo(
-    () => Object.fromEntries(players.map((p) => [p.id, p])),
-    [players]
-  );
+  const userById = useMemo(() => {
+    const map: Record<string, User> = {};
+    for (const player of players) {
+      if (!map[player.id]) map[player.id] = player;
+    }
+    return map;
+  }, [players]);
 
   const handleSlotPress = (slotId: string) => {
     if (readOnly) return;

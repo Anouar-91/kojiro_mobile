@@ -18,6 +18,8 @@ export async function fetchMatchComposition(matchId: string): Promise<MatchCompo
     matchId,
     formationA: meta?.formation_a ?? 'auto',
     formationB: meta?.formation_b ?? 'auto',
+    captainAId: meta?.captain_a_id ?? undefined,
+    captainBId: meta?.captain_b_id ?? undefined,
     validatedAt: meta?.validated_at ?? undefined,
     lineups: (lineupsRes.data ?? []).map((row) => ({
       userId: row.user_id ?? guestPlayerId(row.attendee_id),
@@ -33,7 +35,8 @@ export async function saveMatchComposition(
   matchId: string,
   formationA: string,
   formationB: string,
-  lineups: LineupPlacement[]
+  lineups: LineupPlacement[],
+  options?: { publish?: boolean; editSide?: TeamSide | null }
 ): Promise<void> {
   const { error } = await supabase.rpc('save_match_composition', {
     p_match_id: matchId,
@@ -58,6 +61,22 @@ export async function saveMatchComposition(
         pos_y: l.posY != null ? String(l.posY) : '',
       };
     }),
+    p_publish: options?.publish ?? false,
+    p_edit_side: options?.editSide ?? null,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
+export async function assignMatchCaptains(
+  matchId: string,
+  captainAId: string | null,
+  captainBId: string | null
+): Promise<void> {
+  const { error } = await supabase.rpc('assign_match_captains', {
+    p_match_id: matchId,
+    p_captain_a_id: captainAId,
+    p_captain_b_id: captainBId,
   });
 
   if (error) throw new Error(error.message);

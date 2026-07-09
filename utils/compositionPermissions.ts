@@ -1,0 +1,70 @@
+import { MatchComposition } from '@/types/lineup';
+
+export type CompositionRole = 'organizer' | 'captain_a' | 'captain_b' | 'viewer';
+
+export function getCompositionRole(
+  userId: string | undefined,
+  organizerId: string,
+  composition: MatchComposition | null
+): CompositionRole {
+  if (!userId) return 'viewer';
+  if (userId === organizerId) return 'organizer';
+  if (composition?.captainAId === userId) return 'captain_a';
+  if (composition?.captainBId === userId) return 'captain_b';
+  return 'viewer';
+}
+
+export function canEditComposition(
+  role: CompositionRole,
+  matchStatus: string,
+  _composition: MatchComposition | null
+): boolean {
+  if (matchStatus === 'completed' || matchStatus === 'live') return false;
+  if (role === 'organizer') return true;
+  if (role === 'captain_a' || role === 'captain_b') return true;
+  return false;
+}
+
+export function canPublishComposition(role: CompositionRole, matchStatus: string): boolean {
+  return role === 'organizer' && matchStatus !== 'completed' && matchStatus !== 'live';
+}
+
+export function canAssignCaptains(role: CompositionRole, matchStatus: string): boolean {
+  return role === 'organizer' && matchStatus !== 'completed';
+}
+
+export function isCaptainRole(role: CompositionRole): boolean {
+  return role === 'captain_a' || role === 'captain_b';
+}
+
+export function hasCompositionLineups(composition: MatchComposition | null): boolean {
+  return Boolean(composition?.lineups.length);
+}
+
+export function getComposeButtonLabel(role: CompositionRole, canEdit: boolean): string {
+  if (!canEdit) return 'Voir la composition';
+
+  switch (role) {
+    case 'organizer':
+      return 'Composer les équipes';
+    case 'captain_a':
+      return 'Composer équipe A';
+    case 'captain_b':
+      return 'Composer équipe B';
+    default:
+      return 'Voir la composition';
+  }
+}
+
+export function getCompositionLockMessage(role: CompositionRole, matchStatus: string): string {
+  if (matchStatus === 'live') {
+    return 'Le match est en cours — la composition est en lecture seule.';
+  }
+  if (matchStatus === 'completed') {
+    return 'Match terminé.';
+  }
+  if (role === 'viewer') {
+    return 'Seul l\'organisateur ou les capitaines peuvent composer les équipes.';
+  }
+  return 'La composition est en lecture seule.';
+}

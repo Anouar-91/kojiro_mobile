@@ -19,7 +19,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { getPresentUsersFromMatch, useProfileStore } from '@/store/profileStore';
 import { User } from '@/types';
-import { TeamSide } from '@/types/lineup';
+import { MatchComposition, TeamSide } from '@/types/lineup';
 import {
   autoFillLineup,
   buildFormationSlotsFromLayout,
@@ -30,7 +30,13 @@ import {
   parseFormationLabel,
   pruneSlotAssignments,
 } from '@/utils/formations';
-import { getAttendeeParticipantId, resolveParticipantUser } from '@/utils/guestAttendees';
+import {
+  canEditComposition,
+  CompositionRole,
+  getCompositionLockMessage,
+  getCompositionRole,
+} from '@/utils/compositionPermissions';
+import { getAttendeeParticipantId, resolveParticipantUser, uniqueParticipantIds } from '@/utils/guestAttendees';
 import { balanceTeams } from '@/utils/teamBalancer';
 
 type Step = 'teams' | 'formation-a' | 'formation-b' | 'review';
@@ -127,6 +133,7 @@ export default function TeamsScreen() {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [compositionMeta, setCompositionMeta] = useState<MatchComposition | null>(null);
   const rostersRef = useRef({ teamAIds, teamBIds });
   rostersRef.current = { teamAIds, teamBIds };
 
@@ -178,6 +185,7 @@ export default function TeamsScreen() {
       setLoading(true);
       try {
         const composition = await fetchMatchComposition(match.id);
+        if (active) setCompositionMeta(composition);
         const players = getPresentUsersFromMatch(match, getProfile);
         const def = getDefaultFormation(match.format);
 
@@ -190,8 +198,8 @@ export default function TeamsScreen() {
           ].filter((id) => !aIds.includes(id));
           const layoutA = parseFormationLabel(composition.formationA) ?? def;
           const layoutB = parseFormationLabel(composition.formationB) ?? def;
-          setTeamAIds(aIds);
-          setTeamBIds(bIds);
+          setTeamAIds(uniqueParticipantIds(aIds));
+          setTeamBIds(uniqueParticipantIds(bIds));
           setFormationLayoutA(layoutA);
           setFormationLayoutB(layoutB);
 
@@ -229,19 +237,34 @@ export default function TeamsScreen() {
   useEffect(() => {
     if (loading || !match || !presentIdsKey) return;
 
-    const presentIds = presentIdsKey.split(',');
+    const presentIds = uniqueParticipantIds(presentIdsKey ? presentIdsKey.split(',') : []);
     const presentSet = new Set(presentIds);
     const { teamAIds: prevA, teamBIds: prevB } = rostersRef.current;
     const synced = syncRostersWithPresentPlayers(prevA, prevB, presentIds);
 
     if (synced.changed) {
-      setTeamAIds(synced.teamAIds);
-      setTeamBIds(synced.teamBIds);
+      setTeamAIds(uniqueParticipantIds(synced.teamAIds));
+      setTeamBIds(uniqueParticipantIds(synced.teamBIds));
     }
 
     setSlotsA((prev) => removeAbsentFromSlots(prev, presentSet));
     setSlotsB((prev) => removeAbsentFromSlots(prev, presentSet));
   }, [presentIdsKey, loading, match]);
+
+  const role: CompositionRole = getCompositionRole(
+    user?.id,
+    match?.organizerId ?? '',
+    compositionMeta
+  );
+  const captainSide: TeamSide | null = role === 'captain_a' ? 'A' : role === 'captain_b' ? 'B' : null;
+  const isOrganizer = role === 'organizer';
+  const canEdit = match ? canEditComposition(role, match.status, compositionMeta) : false;
+
+  useEffect(() => {
+    if (loading || role === 'organizer' || role === 'viewer') return;
+    if (captainSide === 'A') setStep('formation-a');
+    if (captainSide === 'B') setStep('formation-b');
+  }, [loading, role, captainSide]);
 
   const handleFormationChange = (side: TeamSide, layout: FormationLayout) => {
     if (!match || !isValidFormation(layout, match.format)) return;
@@ -264,11 +287,18 @@ export default function TeamsScreen() {
     );
   }
 
-  const isOrganizer = user?.id === match.organizerId;
-  if (!isOrganizer) {
+  if (loading) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.muted}>Seul l'organisateur peut composer les équipes.</Text>
+        <Text style={styles.muted}>Chargement...</Text>
+      </View>
+    );
+  }
+
+  if (!canEdit) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.muted}>{getCompositionLockMessage(role, match.status)}</Text>
         <Button
           title="Voir la composition"
           onPress={() => router.push({ pathname: '/match/lineup', params: { id: match.id } })}
@@ -279,23 +309,10 @@ export default function TeamsScreen() {
     );
   }
 
-  if (match.status === 'completed') {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.muted}>Match terminé.</Text>
-        <Button
-          title="Voir la composition"
-          onPress={() => router.push({ pathname: '/match/lineup', params: { id: match.id } })}
-          fullWidth
-        />
-      </View>
-    );
-  }
-
   const resolveUser = (id: string) => resolveParticipantUser(id, match, getProfile);
 
-  const playersA = teamAIds.map(resolveUser).filter(Boolean) as User[];
-  const playersB = teamBIds.map(resolveUser).filter(Boolean) as User[];
+  const playersA = uniqueParticipantIds(teamAIds).map(resolveUser).filter(Boolean) as User[];
+  const playersB = uniqueParticipantIds(teamBIds).map(resolveUser).filter(Boolean) as User[];
   const allPresent = getPresentUsersFromMatch(match, getProfile);
 
   const moveToTeam = (userId: string, target: TeamSide) => {
@@ -358,42 +375,73 @@ export default function TeamsScreen() {
     setter(autoToSlotAssignments(autoFillLineup(ids, slots, getPosition)));
   };
 
-  const handleSave = async () => {
-    if (!isValidFormation(formationLayoutA, match.format) || !isValidFormation(formationLayoutB, match.format)) {
-      Alert.alert('Formation invalide', 'Vérifie que DEF + MIL + ATT = joueurs de champ pour chaque équipe.');
+  const handleSave = async (publish: boolean, editSide: TeamSide | null = null) => {
+    const side = editSide ?? captainSide;
+
+    if (side) {
+      const layout = side === 'A' ? formationLayoutA : formationLayoutB;
+      if (!isValidFormation(layout, match.format)) {
+        Alert.alert('Formation invalide', 'Vérifie que DEF + MIL + ATT = joueurs de terrain.');
+        return;
+      }
+    } else if (
+      !isValidFormation(formationLayoutA, match.format) ||
+      !isValidFormation(formationLayoutB, match.format)
+    ) {
+      Alert.alert('Formation invalide', 'Vérifie que DEF + MIL + ATT = joueurs de terrain pour chaque équipe.');
       return;
     }
+
     setSaving(true);
     try {
       const { teamAIds: rosterA, teamBIds: rosterB } = normalizeTeamRosters(teamAIds, teamBIds);
-      const lineups = buildLineupsFromState(
-        rosterA,
-        rosterB,
-        slotsA,
-        slotsB,
-        formationSlotsA,
-        formationSlotsB
-      );
-      await saveMatchComposition(match.id, labelA, labelB, lineups);
-
-      const allIds = [...rosterA, ...rosterB];
-      await Promise.all(
-        allIds
-          .filter((uid) => uid !== user?.id)
-          .map((uid) =>
-            createNotification(uid, {
-              type: 'team_assigned',
-              title: 'Composition publiée',
-              body: `L'organisateur a publié les équipes pour "${match.title}".`,
-              data: { matchId: match.id },
-            }).catch(() => {})
+      const lineups = side
+        ? buildLineupsFromState(
+            side === 'A' ? rosterA : [],
+            side === 'B' ? rosterB : [],
+            side === 'A' ? slotsA : {},
+            side === 'B' ? slotsB : {},
+            formationSlotsA,
+            formationSlotsB
           )
-      );
+        : buildLineupsFromState(
+            rosterA,
+            rosterB,
+            slotsA,
+            slotsB,
+            formationSlotsA,
+            formationSlotsB
+          );
 
-      await fetchMatches(user?.id);
-      Alert.alert('Composition enregistrée', 'Les joueurs peuvent consulter la formation.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      await saveMatchComposition(match.id, labelA, labelB, lineups, {
+        publish,
+        editSide: side,
+      });
+
+      if (publish) {
+        const allIds = [...rosterA, ...rosterB];
+        await Promise.all(
+          allIds
+            .filter((uid) => uid !== user?.id && !uid.startsWith('guest:'))
+            .map((uid) =>
+              createNotification(uid, {
+                type: 'team_assigned',
+                title: 'Composition publiée',
+                body: `Les équipes sont publiées pour "${match.title}".`,
+                data: { matchId: match.id },
+              }).catch(() => {})
+            )
+        );
+        await fetchMatches(user?.id);
+        Alert.alert('Composition publiée', 'Les joueurs peuvent consulter la formation.', [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
+      } else {
+        await fetchMatches(user?.id);
+        Alert.alert('Équipe enregistrée', `Formation équipe ${side} mise à jour.`, [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
+      }
     } catch (e) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Sauvegarde impossible');
     } finally {
@@ -401,23 +449,37 @@ export default function TeamsScreen() {
     }
   };
 
-  const steps: { key: Step; label: string }[] = [
-    { key: 'teams', label: 'Équipes' },
-    { key: 'formation-a', label: 'Form. A' },
-    { key: 'formation-b', label: 'Form. B' },
-    { key: 'review', label: 'Valider' },
-  ];
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.muted}>Chargement...</Text>
-      </View>
-    );
-  }
+  const steps: { key: Step; label: string }[] = isOrganizer
+    ? [
+        { key: 'teams', label: 'Équipes' },
+        { key: 'formation-a', label: 'Form. A' },
+        { key: 'formation-b', label: 'Form. B' },
+        { key: 'review', label: 'Valider' },
+      ]
+    : captainSide === 'A'
+      ? [{ key: 'formation-a', label: 'Équipe A' }]
+      : [{ key: 'formation-b', label: 'Équipe B' }];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      {isOrganizer && !compositionMeta?.validatedAt && allPresent.length >= 2 && (
+        <View style={styles.autoBanner}>
+          <Text style={styles.autoBannerTitle}>Compo auto-proposée</Text>
+          <Text style={styles.autoBannerDesc}>
+            Les équipes sont pré-équilibrées. Ajuste si besoin, désigne des capitaines depuis le match, puis publie.
+          </Text>
+        </View>
+      )}
+
+      {captainSide && (
+        <View style={styles.captainBanner}>
+          <Text style={styles.captainBannerTitle}>Capitaine équipe {captainSide}</Text>
+          <Text style={styles.captainBannerDesc}>
+            Place les joueurs de ton équipe. Tu peux modifier même après publication.
+          </Text>
+        </View>
+      )}
+
       <View style={styles.stepper}>
         {steps.map((s, i) => (
           <Pressable key={s.key} style={styles.stepItem} onPress={() => setStep(s.key)}>
@@ -491,9 +553,30 @@ export default function TeamsScreen() {
             accentColor={Colors.primary}
           />
           <View style={styles.navRow}>
-            <Button title="Retour" onPress={() => setStep('teams')} variant="ghost" />
-            <Button title="Équipe B" onPress={() => setStep('formation-b')} />
+            {isOrganizer ? (
+              <>
+                <Button title="Retour" onPress={() => setStep('teams')} variant="ghost" />
+                <Button title="Équipe B" onPress={() => setStep('formation-b')} />
+              </>
+            ) : (
+              <Button
+                title="Enregistrer mon équipe"
+                onPress={() => handleSave(false, 'A')}
+                loading={saving}
+                fullWidth
+                icon="save-outline"
+              />
+            )}
           </View>
+          {captainSide === 'A' && playersB.length > 0 && (
+            <OpponentPreview
+              title={`Équipe B — ${labelB}`}
+              slots={formationSlotsB}
+              players={playersB}
+              slotAssignments={slotsB}
+              accentColor={Colors.info}
+            />
+          )}
         </>
       )}
 
@@ -519,9 +602,30 @@ export default function TeamsScreen() {
             accentColor={Colors.info}
           />
           <View style={styles.navRow}>
-            <Button title="Équipe A" onPress={() => setStep('formation-a')} variant="ghost" />
-            <Button title="Récapitulatif" onPress={() => setStep('review')} />
+            {isOrganizer ? (
+              <>
+                <Button title="Équipe A" onPress={() => setStep('formation-a')} variant="ghost" />
+                <Button title="Récapitulatif" onPress={() => setStep('review')} />
+              </>
+            ) : (
+              <Button
+                title="Enregistrer mon équipe"
+                onPress={() => handleSave(false, 'B')}
+                loading={saving}
+                fullWidth
+                icon="save-outline"
+              />
+            )}
           </View>
+          {captainSide === 'B' && playersA.length > 0 && (
+            <OpponentPreview
+              title={`Équipe A — ${labelA}`}
+              slots={formationSlotsA}
+              players={playersA}
+              slotAssignments={slotsA}
+              accentColor={Colors.primary}
+            />
+          )}
         </>
       )}
 
@@ -549,7 +653,7 @@ export default function TeamsScreen() {
           />
           <Button
             title="Publier la composition"
-            onPress={handleSave}
+            onPress={() => handleSave(true)}
             loading={saving}
             fullWidth
             size="lg"
@@ -558,6 +662,33 @@ export default function TeamsScreen() {
         </>
       )}
     </ScrollView>
+  );
+}
+
+function OpponentPreview({
+  title,
+  slots,
+  players,
+  slotAssignments,
+  accentColor,
+}: {
+  title: string;
+  slots: ReturnType<typeof buildFormationSlotsFromLayout>;
+  players: User[];
+  slotAssignments: Record<string, string>;
+  accentColor: string;
+}) {
+  return (
+    <View style={styles.opponentWrap}>
+      <Text style={styles.opponentTitle}>{title} — adverse</Text>
+      <PitchFormation
+        slots={slots}
+        players={players}
+        slotAssignments={slotAssignments}
+        readOnly
+        accentColor={accentColor}
+      />
+    </View>
   );
 }
 
@@ -579,7 +710,7 @@ function TeamList({
   return (
     <View style={[styles.teamCol, { borderColor: `${color}50` }]}>
       <Text style={[styles.teamColTitle, { color }]}>{title}</Text>
-      {userIds.map((uid) => {
+      {uniqueParticipantIds(userIds).map((uid) => {
         const p = resolveUser(uid);
         if (!p) return null;
         return (
@@ -648,4 +779,32 @@ const styles = StyleSheet.create({
   stepHint: { ...Typography.caption, color: Colors.textMuted, marginBottom: Spacing.sm },
   navRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.md },
   reviewSection: { ...Typography.bodyBold, color: Colors.textSecondary, marginTop: Spacing.md },
+  autoBanner: {
+    backgroundColor: Colors.primaryMuted,
+    borderRadius: 12,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    marginBottom: Spacing.md,
+  },
+  autoBannerTitle: { ...Typography.bodyBold, color: Colors.primary },
+  autoBannerDesc: { ...Typography.caption, color: Colors.textSecondary, marginTop: 4 },
+  captainBanner: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.info,
+    marginBottom: Spacing.md,
+  },
+  captainBannerTitle: { ...Typography.bodyBold, color: Colors.info },
+  captainBannerDesc: { ...Typography.caption, color: Colors.textSecondary, marginTop: 4 },
+  opponentWrap: {
+    marginTop: Spacing.xl,
+    paddingTop: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  opponentTitle: { ...Typography.bodyBold, color: Colors.textSecondary },
 });

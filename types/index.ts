@@ -146,7 +146,7 @@ export interface LeaderboardEntry {
 
 export interface Notification {
   id: string;
-  type: 'match_invite' | 'match_reminder' | 'match_waitlist' | 'team_assigned' | 'chat_message' | 'social' | 'tournament' | 'friend_request';
+  type: 'match_invite' | 'match_reminder' | 'match_recap' | 'match_waitlist' | 'team_assigned' | 'chat_message' | 'social' | 'tournament' | 'friend_request';
   title: string;
   body: string;
   read: boolean;
@@ -175,6 +175,32 @@ export interface MatchHistory {
   goals: number;
   assists: number;
   mvp: boolean;
+}
+
+export interface MatchRecapPlayer {
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  team: 'A' | 'B';
+  goals: number;
+  assists: number;
+  rating: number;
+  fairPlay: number;
+  mvp: boolean;
+  result: string;
+}
+
+export interface MatchRecap {
+  matchId: string;
+  title: string;
+  date: string;
+  locationName: string;
+  format: number;
+  score: string;
+  teamAScore: number;
+  teamBScore: number;
+  players: MatchRecapPlayer[];
+  mvp: { userId: string; name: string } | null;
 }
 
 export type FriendRequestStatus = 'pending' | 'accepted' | 'declined';

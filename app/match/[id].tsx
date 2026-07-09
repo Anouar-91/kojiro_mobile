@@ -6,6 +6,7 @@ import { ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 
 import { MatchOrganizerSteps } from '@/components/match/MatchOrganizerSteps';
 import { AddGuestPlayerModal } from '@/components/match/AddGuestPlayerModal';
+import { CaptainPicker } from '@/components/match/CaptainPicker';
 import { DevFillMatchPanel } from '@/components/dev/DevFillMatchPanel';
 
 import { Badge } from '@/components/ui/Badge';
@@ -15,7 +16,8 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useMatchChatUnread } from '@/hooks/useMatchChatUnread';
 import { closeMatchRecruitment, reopenMatchRecruitment } from '@/services/matches';
-import { fetchMatchComposition } from '@/services/composition';
+import { assignMatchCaptains, fetchMatchComposition } from '@/services/composition';
+import { createNotification } from '@/services/notifications';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
 import { useMatchStore } from '@/store/matchStore';
@@ -40,6 +42,13 @@ import {
   isRecruitmentClosed,
 } from '@/utils/matchAttendance';
 import { isGuestPlayerId, parseGuestPlayerId } from '@/utils/guestAttendees';
+import {
+  canEditComposition,
+  getComposeButtonLabel,
+  hasCompositionLineups,
+  getCompositionRole,
+} from '@/utils/compositionPermissions';
+import { MatchComposition } from '@/types/lineup';
 
 const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
   present: 'Présent',
@@ -63,14 +72,26 @@ export default function MatchDetailScreen() {
   const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
   const isFriend = useFriendStore((s) => s.isFriend);
   const [hasComposition, setHasComposition] = useState(false);
+  const [composition, setComposition] = useState<MatchComposition | null>(null);
+  const [captainAId, setCaptainAId] = useState<string | null>(null);
+  const [captainBId, setCaptainBId] = useState<string | null>(null);
+  const [savingCaptains, setSavingCaptains] = useState(false);
   const [guestModalVisible, setGuestModalVisible] = useState(false);
   const { unreadCount: chatUnreadCount } = useMatchChatUnread(match?.id, user?.id);
 
   useEffect(() => {
     if (!match) return;
     fetchMatchComposition(match.id)
-      .then((c) => setHasComposition(Boolean(c?.validatedAt && (c.lineups.length ?? 0) > 0)))
-      .catch(() => setHasComposition(false));
+      .then((c) => {
+        setComposition(c);
+        setHasComposition(Boolean(c?.validatedAt && (c.lineups.length ?? 0) > 0));
+        setCaptainAId(c?.captainAId ?? null);
+        setCaptainBId(c?.captainBId ?? null);
+      })
+      .catch(() => {
+        setComposition(null);
+        setHasComposition(false);
+      });
   }, [match?.id, match?.status]);
 
   if (!match) {
@@ -97,6 +118,10 @@ export default function MatchDetailScreen() {
   };
 
   const isOrganizer = user?.id === match.organizerId;
+  const compositionRole = getCompositionRole(user?.id, match.organizerId, composition);
+  const canCompose = canEditComposition(compositionRole, match.status, composition);
+  const composeButtonLabel = getComposeButtonLabel(compositionRole, canCompose);
+  const hasLineups = hasCompositionLineups(composition);
   const isCompleted = match.status === 'completed';
   const recruitmentClosed = isRecruitmentClosed(match);
   const attendanceFullyLocked = isAttendanceFullyLocked(match);
@@ -213,6 +238,39 @@ export default function MatchDetailScreen() {
       Alert.alert('Place confirmée', 'Tu es inscrit comme présent pour ce match.');
     } catch (e) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de confirmer ta place');
+    }
+  };
+
+  const handleSaveCaptains = async () => {
+    setSavingCaptains(true);
+    try {
+      const prevA = composition?.captainAId ?? null;
+      const prevB = composition?.captainBId ?? null;
+      await assignMatchCaptains(match.id, captainAId, captainBId);
+      const updated = await fetchMatchComposition(match.id);
+      setComposition(updated);
+      setCaptainAId(updated?.captainAId ?? null);
+      setCaptainBId(updated?.captainBId ?? null);
+
+      const toNotify: string[] = [];
+      if (captainAId && captainAId !== prevA && captainAId !== user?.id) toNotify.push(captainAId);
+      if (captainBId && captainBId !== prevB && captainBId !== user?.id) toNotify.push(captainBId);
+      await Promise.all(
+        toNotify.map((uid) =>
+          createNotification(uid, {
+            type: 'team_assigned',
+            title: 'Capitaine désigné',
+            body: `Tu es capitaine pour "${match.title}". Compose ton équipe depuis le match.`,
+            data: { matchId: match.id },
+          }).catch(() => {})
+        )
+      );
+
+      Alert.alert('Capitaines enregistrés', 'Ils peuvent composer leur moitié de terrain.');
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer les capitaines');
+    } finally {
+      setSavingCaptains(false);
     }
   };
 
@@ -411,6 +469,21 @@ export default function MatchDetailScreen() {
         />
       </View>
 
+      {isOrganizer && !isCompleted && match.status === 'upcoming' && presentUsers.length >= 2 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Capitaines</Text>
+          <CaptainPicker
+            presentUsers={presentUsers}
+            captainAId={captainAId}
+            captainBId={captainBId}
+            onCaptainAChange={setCaptainAId}
+            onCaptainBChange={setCaptainBId}
+            onSave={handleSaveCaptains}
+            saving={savingCaptains}
+          />
+        </View>
+      )}
+
       {match.description && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Description</Text>
@@ -446,20 +519,33 @@ export default function MatchDetailScreen() {
             variant={recruitmentClosed || match.status === 'live' ? 'primary' : 'secondary'}
           />
         )}
+        {isCompleted && (
+          <Button
+            title="Voir le résumé"
+            onPress={() => router.push({ pathname: '/match/recap', params: { id: match.id } })}
+            icon="document-text-outline"
+            fullWidth
+          />
+        )}
         {!isCompleted && (
           <>
-            <Button
-              title={isOrganizer ? 'Composer les équipes' : 'Voir la composition'}
-              onPress={() =>
-                router.push(
-                  isOrganizer
-                    ? { pathname: '/match/teams', params: { id: match.id } }
-                    : { pathname: '/match/lineup', params: { id: match.id } }
-                )
-              }
-              icon="football-outline"
-              fullWidth
-            />
+            {canCompose && (
+              <Button
+                title={composeButtonLabel}
+                onPress={() => router.push({ pathname: '/match/teams', params: { id: match.id } })}
+                icon="football-outline"
+                fullWidth
+              />
+            )}
+            {(hasLineups || !canCompose) && (
+              <Button
+                title="Voir la composition"
+                onPress={() => router.push({ pathname: '/match/lineup', params: { id: match.id } })}
+                icon="eye-outline"
+                fullWidth
+                variant={canCompose ? 'outline' : 'primary'}
+              />
+            )}
             <View style={styles.chatBtnWrap}>
               <Button
                 title="Chat du match"

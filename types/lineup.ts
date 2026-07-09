@@ -20,6 +20,8 @@ export interface MatchComposition {
   matchId: string;
   formationA: string;
   formationB: string;
+  captainAId?: string;
+  captainBId?: string;
   validatedAt?: string;
   lineups: LineupPlacement[];
 }

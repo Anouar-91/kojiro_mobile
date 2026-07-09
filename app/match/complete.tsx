@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/Button';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { completeMatch, PlayerMatchStat } from '@/services/matches';
 import { fetchMatchComposition } from '@/services/composition';
-import { createNotification } from '@/services/notifications';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { getPresentUsersFromMatch, useProfileStore } from '@/store/profileStore';
@@ -137,20 +136,6 @@ export default function CompleteMatchScreen() {
     try {
       const registeredStats = playerStats.filter((p) => !isGuestPlayerId(p.userId));
       await completeMatch(match.id, scoreA, scoreB, registeredStats);
-      const scoreLabel = `${scoreA} - ${scoreB}`;
-
-      await Promise.all(
-        registeredStats
-          .filter((p) => p.userId !== user?.id)
-          .map((p) =>
-            createNotification(p.userId, {
-              type: 'match_reminder',
-              title: 'Match terminé !',
-              body: `"${match.title}" — Score final : ${scoreLabel}`,
-              data: { matchId: match.id },
-            }).catch(() => {})
-          )
-      );
 
       await fetchMatches();
       await fetchProfiles();

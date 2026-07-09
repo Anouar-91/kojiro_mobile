@@ -62,11 +62,18 @@ Guide du parcours complet, de la création à la fin du match.
 
 ## Étape 4 — Composition des équipes et formations
 
-**Qui :** **organisateur uniquement** (MVP actuel)
+**Qui :** organisateur (+ capitaines optionnels pour leur moitié de terrain)
 
 **Écran :** Détail du match → `Composer les équipes`
 
-### Sous-étapes dans l'app
+### Parcours
+
+1. **Compo auto** — dès l'ouverture, les présents sont répartis en A/B (équilibrage IA)
+2. **Capitaines (optionnel)** — l'organisateur désigne un capitaine A et/ou B depuis le détail du match
+3. **Édition** — orga : tout ; capitaine : formation + placement de son équipe (même après publication)
+4. **Publication** — orga uniquement → notif aux joueurs (n'empêche pas les capitaines de modifier)
+
+### Sous-étapes dans l'app (organisateur)
 
 | # | Écran | Action |
 |---|-------|--------|
@@ -75,11 +82,9 @@ Guide du parcours complet, de la création à la fin du match.
 | 4c | **Formation B** | Idem pour l'équipe B |
 | 4d | **Valider** | Publier → sauvegarde Supabase + notif aux joueurs |
 
+**Capitaines** : écran formation de leur équipe + « Enregistrer mon équipe ». Modifications possibles après publication ; verrouillage au démarrage du match ou si l'orga retire le capitaine.
+
 **Les autres joueurs** consultent via `Voir la composition` (lecture seule).
-
-**Formations :** choix par équipe via chips (2-3-1, 3-2-1…) ou steppers DEF / MIL / ATT personnalisés. Joueurs non placés = banc.
-
-> **Phase 2 prévue :** capitaines par équipe avec droits d'édition limités à leur côté.
 
 ---
 
@@ -142,12 +147,14 @@ Guide du parcours complet, de la création à la fin du match.
 | Confirmer présence | ✅ | ✅ | ❌* |
 | Inviter | ✅ | ❌ | ❌ |
 | Composer / publier formation | ✅ | ❌ | ❌ |
+| Composer son équipe (capitaine) | — | ✅* | ❌ |
 | Voir formation | ✅ | ✅ | selon visibilité |
 | Démarrer match | ✅ | ❌ | ❌ |
 | Terminer + stats | ✅ | ❌ | ❌ |
 | Chat | ✅ | ✅ | ❌ |
 
-\*Match entre amis : ami de l'orga ou déjà invité.
+\*Match entre amis : ami de l'orga ou déjà invité.  
+\*Capitaine : désigné par l'organisateur, édite son côté jusqu'au coup d'envoi. Retirer le capitaine = bloquer ses modifications.
 
 ---
 
@@ -157,9 +164,11 @@ Exécuter dans le SQL Editor :
 
 ```
 supabase/migrations/011_match_composition.sql
+supabase/migrations/027_match_captains.sql
+supabase/migrations/028_captain_edit_after_publish.sql
 ```
 
-Crée les tables `match_compositions`, `match_lineups` et les fonctions `save_match_composition`, `start_match`.
+Crée les tables `match_compositions`, `match_lineups` et les fonctions `save_match_composition`, `assign_match_captains`, `start_match`.
 
 ---
 
@@ -174,7 +183,9 @@ Crée les tables `match_compositions`, `match_lineups` et les fonctions `save_ma
 | `components/match/PitchFormation.tsx` | Terrain + placement |
 | `app/match/complete.tsx` | Fin de match + stats |
 | `services/composition.ts` | API composition |
-| `supabase/migrations/011_match_composition.sql` | Schéma BDD |
+| `components/match/CaptainPicker.tsx` | Désignation capitaines |
+| `utils/compositionPermissions.ts` | Rôles compo |
+| `supabase/migrations/027_match_captains.sql` | Capitaines + RPC |
 
 ---
 

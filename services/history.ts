@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { MatchHistory } from '@/types';
+import { MatchHistory, MatchRecap } from '@/types';
 
 export async function fetchMatchHistory(userId: string): Promise<MatchHistory[]> {
   const { data, error } = await supabase
@@ -61,5 +61,38 @@ export async function addMatchResult(
     goals: data.goals,
     assists: data.assists,
     mvp: data.mvp,
+  };
+}
+
+export async function fetchMatchRecap(matchId: string): Promise<MatchRecap> {
+  const { data, error } = await supabase.rpc('get_match_recap', { p_match_id: matchId });
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error('Résumé introuvable');
+
+  const recap = data as Record<string, unknown>;
+  const players = (recap.players as Record<string, unknown>[]) ?? [];
+
+  return {
+    matchId: recap.matchId as string,
+    title: recap.title as string,
+    date: recap.date as string,
+    locationName: recap.locationName as string,
+    format: recap.format as number,
+    score: recap.score as string,
+    teamAScore: Number(recap.teamAScore ?? 0),
+    teamBScore: Number(recap.teamBScore ?? 0),
+    mvp: (recap.mvp as MatchRecap['mvp']) ?? null,
+    players: players.map((p) => ({
+      userId: p.userId as string,
+      name: p.name as string,
+      avatarUrl: (p.avatarUrl as string | null) ?? null,
+      team: p.team as 'A' | 'B',
+      goals: Number(p.goals ?? 0),
+      assists: Number(p.assists ?? 0),
+      rating: Number(p.rating ?? 4),
+      fairPlay: Number(p.fairPlay ?? 4),
+      mvp: Boolean(p.mvp),
+      result: p.result as string,
+    })),
   };
 }
