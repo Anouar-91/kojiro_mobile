@@ -136,11 +136,28 @@ export async function upsertAttendance(
     }
   }
 
-  const { error } = await supabase.from('match_attendees').upsert(
-    { match_id: matchId, user_id: userId, status },
-    { onConflict: 'match_id,user_id' }
-  );
-  if (error) throw new Error(error.message);
+  const { data: existing, error: selectError } = await supabase
+    .from('match_attendees')
+    .select('id')
+    .eq('match_id', matchId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (selectError) throw new Error(selectError.message);
+
+  if (existing) {
+    const { error } = await supabase
+      .from('match_attendees')
+      .update({ status })
+      .eq('id', existing.id);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase.from('match_attendees').insert({
+      match_id: matchId,
+      user_id: userId,
+      status,
+    });
+    if (error) throw new Error(error.message);
+  }
 }
 
 export async function closeMatchRecruitment(matchId: string): Promise<void> {

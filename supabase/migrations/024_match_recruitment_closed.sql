@@ -162,9 +162,13 @@ BEGIN
 
   SELECT name INTO v_inviter_name FROM public.profiles WHERE id = auth.uid();
 
-  INSERT INTO public.match_attendees (match_id, user_id, status)
-  VALUES (p_match_id, p_user_id, 'pending')
-  ON CONFLICT (match_id, user_id) DO NOTHING;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.match_attendees
+    WHERE match_id = p_match_id AND user_id = p_user_id
+  ) THEN
+    INSERT INTO public.match_attendees (match_id, user_id, status)
+    VALUES (p_match_id, p_user_id, 'pending');
+  END IF;
 
   INSERT INTO public.notifications (user_id, type, title, body, data)
   VALUES (
