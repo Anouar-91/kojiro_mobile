@@ -13,6 +13,8 @@ import {
 
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
+import { StatIcon } from '@/components/ui/StatIcon';
+import { ProfileStatIconKey } from '@/constants/profileIcons';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { fetchMatchComposition } from '@/services/composition';
 import {
@@ -28,7 +30,13 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { getPresentUsersFromMatch, useProfileStore } from '@/store/profileStore';
-import { MatchStatsState } from '@/types/matchStats';
+import {
+  DEFAULT_DEFENSIVE_RATING,
+  DEFAULT_FAIR_PLAY_RATING,
+  defaultEditableMatchStat,
+  EditableMatchStat,
+  MatchStatsState,
+} from '@/types/matchStats';
 import { TeamSide } from '@/types/lineup';
 import { isGuestPlayerId } from '@/utils/guestAttendees';
 import {
@@ -36,8 +44,60 @@ import {
   buildRosterFromPlayers,
   isRegisteredPresent,
 } from '@/utils/matchStatsRoster';
+import { computeMatchGlobalRating, getResultForTeam } from '@/utils/calculateMatchRating';
 
-type EditableStat = { goals: number; assists: number };
+type EditableStat = EditableMatchStat;
+
+const RATING_OPTIONS = [1, 2, 3, 4, 5] as const;
+
+function RatingPicker({
+  label,
+  icon,
+  value,
+  onChange,
+  compact,
+}: {
+  label: string;
+  icon?: ProfileStatIconKey;
+  value: number;
+  onChange: (v: number) => void;
+  compact?: boolean;
+}) {
+  return (
+    <View style={[styles.ratingPickerWrap, compact && styles.ratingPickerWrapCompact]}>
+      <View style={styles.statLabelRow}>
+        {icon && <StatIcon name={icon} variant="compact" />}
+        <Text style={styles.statLabel}>{label}</Text>
+      </View>
+      <View style={styles.ratingPickerRow}>
+        {RATING_OPTIONS.map((n) => {
+          const active = value === n;
+          return (
+            <Pressable
+              key={n}
+              style={[styles.ratingPickerBtn, active && styles.ratingPickerBtnActive]}
+              onPress={() => onChange(n)}
+            >
+              <Text style={[styles.ratingPickerBtnText, active && styles.ratingPickerBtnTextActive]}>{n}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function formatSelfDeclarationHint(entry: MatchStatsState['entries'][0]): string {
+  if (entry.selfSubmittedAt == null) {
+    return `Pas encore auto-déclaré · défense ${DEFAULT_DEFENSIVE_RATING}/5 · fair-play ${DEFAULT_FAIR_PLAY_RATING}/5 par défaut`;
+  }
+  return `Auto-déclaré : ${[
+    `${entry.selfGoals ?? 0} but(s)`,
+    `${entry.selfAssists ?? 0} passe(s)`,
+    `défense ${entry.selfDefRating ?? DEFAULT_DEFENSIVE_RATING}/5`,
+    `fair-play ${entry.selfFairPlay ?? DEFAULT_FAIR_PLAY_RATING}/5`,
+  ].join(' · ')}`;
+}
 
 function StatInputs({
   goals,
@@ -55,7 +115,10 @@ function StatInputs({
   return (
     <View style={[styles.statInputs, compact && styles.statInputsCompact]}>
       <View style={styles.statField}>
-        <Text style={styles.statLabel}>Buts</Text>
+        <View style={styles.statLabelRow}>
+          <StatIcon name="goal" variant="compact" />
+          <Text style={styles.statLabel}>Buts</Text>
+        </View>
         <TextInput
           style={styles.statInput}
           value={String(goals)}
@@ -65,7 +128,10 @@ function StatInputs({
         />
       </View>
       <View style={styles.statField}>
-        <Text style={styles.statLabel}>Passes</Text>
+        <View style={styles.statLabelRow}>
+          <StatIcon name="assist" variant="compact" />
+          <Text style={styles.statLabel}>Passes</Text>
+        </View>
         <TextInput
           style={styles.statInput}
           value={String(assists)}
@@ -74,6 +140,32 @@ function StatInputs({
           maxLength={2}
         />
       </View>
+    </View>
+  );
+}
+
+function EstimatedGlobalRating({
+  result,
+  stat,
+  isMvp,
+}: {
+  result: ReturnType<typeof getResultForTeam>;
+  stat: EditableStat;
+  isMvp: boolean;
+}) {
+  const rating = computeMatchGlobalRating({
+    result,
+    goals: stat.goals,
+    assists: stat.assists,
+    mvp: isMvp,
+    defRating: stat.defRating,
+    fairPlay: stat.fairPlay,
+  });
+
+  return (
+    <View style={styles.estimatedRatingRow}>
+      <Text style={styles.estimatedRatingLabel}>Note globale estimée</Text>
+      <Text style={styles.estimatedRatingValue}>{rating.toFixed(1)}</Text>
     </View>
   );
 }
@@ -183,6 +275,8 @@ export default function MatchStatsScreen() {
 
   const [myGoals, setMyGoals] = useState(0);
   const [myAssists, setMyAssists] = useState(0);
+  const [myDefRating, setMyDefRating] = useState(DEFAULT_DEFENSIVE_RATING);
+  const [myFairPlay, setMyFairPlay] = useState(DEFAULT_FAIR_PLAY_RATING);
   const [myMvpId, setMyMvpId] = useState<string | null>(null);
 
   const [captainStats, setCaptainStats] = useState<Record<string, EditableStat>>({});
@@ -202,6 +296,8 @@ export default function MatchStatsScreen() {
       if (myEntry) {
         setMyGoals(myEntry.selfGoals ?? myEntry.proposedGoals);
         setMyAssists(myEntry.selfAssists ?? myEntry.proposedAssists);
+        setMyDefRating(myEntry.selfDefRating ?? myEntry.proposedDefRating);
+        setMyFairPlay(myEntry.selfFairPlay ?? myEntry.proposedFairPlay);
       }
 
       const myVote = state.mvpVotes.find((v) => v.voterId === user?.id);
@@ -215,8 +311,15 @@ export default function MatchStatsScreen() {
         captainMap[key] = {
           goals: e.captainGoals ?? e.selfGoals ?? e.proposedGoals,
           assists: e.captainAssists ?? e.selfAssists ?? e.proposedAssists,
+          defRating: e.captainDefRating ?? e.selfDefRating ?? e.proposedDefRating,
+          fairPlay: e.captainFairPlay ?? e.selfFairPlay ?? e.proposedFairPlay,
         };
-        finalMap[key] = { goals: e.proposedGoals, assists: e.proposedAssists };
+        finalMap[key] = {
+          goals: e.proposedGoals,
+          assists: e.proposedAssists,
+          defRating: e.proposedDefRating,
+          fairPlay: e.proposedFairPlay,
+        };
       });
       setCaptainStats(captainMap);
       setFinalStats(finalMap);
@@ -310,7 +413,7 @@ export default function MatchStatsScreen() {
     if (!match) return;
     setSaving(true);
     try {
-      await submitMyMatchStats(match.id, myGoals, myAssists, myMvpId);
+      await submitMyMatchStats(match.id, myGoals, myAssists, myMvpId, myDefRating, myFairPlay);
       await loadStats();
       Alert.alert('Enregistré', 'Tes stats ont été envoyées.');
     } catch (e) {
@@ -325,12 +428,14 @@ export default function MatchStatsScreen() {
     const teamEntries = statsState.entries.filter((e) => e.teamSide === side);
     const players = teamEntries.map((e) => {
       const key = getParticipantKey(e);
-      const stat = captainStats[key] ?? { goals: 0, assists: 0 };
+      const stat = captainStats[key] ?? defaultEditableMatchStat();
       return {
         userId: e.userId ?? undefined,
         attendeeId: e.attendeeId ?? undefined,
         goals: stat.goals,
         assists: stat.assists,
+        defRating: stat.defRating,
+        fairPlay: stat.fairPlay,
       };
     });
 
@@ -362,12 +467,14 @@ export default function MatchStatsScreen() {
         .filter((e) => e.userId && !e.isGuest)
         .map((e) => {
           const key = getParticipantKey(e);
-          const stat = finalStats[key] ?? { goals: 0, assists: 0 };
+          const stat = finalStats[key] ?? defaultEditableMatchStat();
           return {
             userId: e.userId!,
             team: e.teamSide,
             goals: stat.goals,
             assists: stat.assists,
+            defRating: stat.defRating,
+            fairPlay: stat.fairPlay,
           };
         });
 
@@ -493,7 +600,7 @@ export default function MatchStatsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Mes stats</Text>
           <Text style={styles.hint}>
-            Indique tes buts et passes, puis vote pour le MVP.
+            Indique tes buts, passes, tes notes défensive et fair-play, puis vote pour le MVP.
             {isOrganizer ? ' Cette section n\'enregistre que tes stats — la finalisation du match se fait plus bas.' : ''}
           </Text>
           <StatInputs
@@ -502,6 +609,8 @@ export default function MatchStatsScreen() {
             onGoalsChange={setMyGoals}
             onAssistsChange={setMyAssists}
           />
+          <RatingPicker label="Note défensive" icon="defense" value={myDefRating} onChange={setMyDefRating} />
+          <RatingPicker label="Fair-play" icon="fairPlay" value={myFairPlay} onChange={setMyFairPlay} />
           <Text style={styles.mvpLabel}>Vote MVP</Text>
           <MvpPicker
             candidates={mvpCandidates}
@@ -524,11 +633,8 @@ export default function MatchStatsScreen() {
           </Text>
           {captainTeamEntries.map((e) => {
             const key = getParticipantKey(e);
-            const stat = captainStats[key] ?? { goals: 0, assists: 0 };
-            const selfHint =
-              e.selfSubmittedAt != null
-                ? `Auto-déclaré : ${e.selfGoals ?? 0} but(s), ${e.selfAssists ?? 0} passe(s)`
-                : 'Pas encore auto-déclaré';
+            const stat = captainStats[key] ?? defaultEditableMatchStat();
+            const selfHint = formatSelfDeclarationHint(e);
             return (
               <View key={key} style={styles.playerCard}>
                 <View style={styles.playerHeader}>
@@ -547,6 +653,20 @@ export default function MatchStatsScreen() {
                   assists={stat.assists}
                   onGoalsChange={(g) => updateCaptainStat(key, { goals: g })}
                   onAssistsChange={(a) => updateCaptainStat(key, { assists: a })}
+                  compact
+                />
+                <RatingPicker
+                  label="Note défensive"
+                  icon="defense"
+                  value={stat.defRating}
+                  onChange={(d) => updateCaptainStat(key, { defRating: d })}
+                  compact
+                />
+                <RatingPicker
+                  label="Fair-play"
+                  icon="fairPlay"
+                  value={stat.fairPlay}
+                  onChange={(f) => updateCaptainStat(key, { fairPlay: f })}
                   compact
                 />
               </View>
@@ -580,6 +700,7 @@ export default function MatchStatsScreen() {
           <Text style={styles.sectionTitle}>Finalisation (organisateur)</Text>
           <Text style={styles.hint}>
             Répartis les buts de chaque joueur pour qu'ils correspondent au score du match, puis valide.
+            La note globale est calculée automatiquement pour chaque joueur.
           </Text>
 
           <GoalTotalsBanner
@@ -596,7 +717,11 @@ export default function MatchStatsScreen() {
 
           {statsState.entries.map((e) => {
             const key = getParticipantKey(e);
-            const stat = finalStats[key] ?? { goals: 0, assists: 0 };
+            const stat = finalStats[key] ?? defaultEditableMatchStat();
+            const teamAScore = statsState.teamAScore ?? 0;
+            const teamBScore = statsState.teamBScore ?? 0;
+            const result = getResultForTeam(e.teamSide, teamAScore, teamBScore);
+            const isMvp = e.userId != null && e.userId === finalMvpId;
             return (
               <View key={key} style={styles.playerCard}>
                 <View style={styles.playerHeader}>
@@ -605,13 +730,30 @@ export default function MatchStatsScreen() {
                   {e.isGuest && <Text style={styles.guestTag}>Invité</Text>}
                 </View>
                 {e.userId && !e.isGuest ? (
-                  <StatInputs
-                    goals={stat.goals}
-                    assists={stat.assists}
-                    onGoalsChange={(g) => updateFinalStat(key, { goals: g })}
-                    onAssistsChange={(a) => updateFinalStat(key, { assists: a })}
-                    compact
-                  />
+                  <>
+                    <StatInputs
+                      goals={stat.goals}
+                      assists={stat.assists}
+                      onGoalsChange={(g) => updateFinalStat(key, { goals: g })}
+                      onAssistsChange={(a) => updateFinalStat(key, { assists: a })}
+                      compact
+                    />
+                    <RatingPicker
+                      label="Note défensive"
+                      icon="defense"
+                      value={stat.defRating}
+                      onChange={(d) => updateFinalStat(key, { defRating: d })}
+                      compact
+                    />
+                    <RatingPicker
+                      label="Fair-play"
+                      icon="fairPlay"
+                      value={stat.fairPlay}
+                      onChange={(f) => updateFinalStat(key, { fairPlay: f })}
+                      compact
+                    />
+                    <EstimatedGlobalRating result={result} stat={stat} isMvp={isMvp} />
+                  </>
                 ) : (
                   <Text style={styles.muted}>Stats invité (non comptabilisées au profil)</Text>
                 )}
@@ -695,7 +837,8 @@ const styles = StyleSheet.create({
   statInputs: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.md },
   statInputsCompact: { marginBottom: 0 },
   statField: { flex: 1 },
-  statLabel: { ...Typography.small, color: Colors.textMuted, marginBottom: 4 },
+  statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
+  statLabel: { ...Typography.small, color: Colors.textMuted },
   statInput: {
     ...Typography.bodyBold,
     color: Colors.text,
@@ -769,6 +912,17 @@ const styles = StyleSheet.create({
   totalsLineRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, marginTop: Spacing.xs },
   totalsLineText: { ...Typography.caption, color: Colors.warning, flex: 1 },
   totalsLineOk: { color: Colors.success },
+  estimatedRatingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  estimatedRatingLabel: { ...Typography.small, color: Colors.textMuted, fontWeight: '600' },
+  estimatedRatingValue: { ...Typography.bodyBold, color: Colors.primary },
   blockedHint: {
     ...Typography.caption,
     color: Colors.textMuted,
@@ -785,4 +939,19 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
     borderRadius: 8,
   },
+  ratingPickerWrap: { marginBottom: Spacing.md },
+  ratingPickerWrapCompact: { marginTop: Spacing.sm, marginBottom: 0 },
+  ratingPickerRow: { flexDirection: 'row', gap: Spacing.sm },
+  ratingPickerBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceElevated,
+  },
+  ratingPickerBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryMuted },
+  ratingPickerBtnText: { ...Typography.bodyBold, color: Colors.textMuted },
+  ratingPickerBtnTextActive: { color: Colors.primary },
 });

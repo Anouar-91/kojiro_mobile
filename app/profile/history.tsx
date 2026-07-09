@@ -4,11 +4,22 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Badge } from '@/components/ui/Badge';
+import { StatIcon } from '@/components/ui/StatIcon';
+import { ProfileStatIconKey } from '@/constants/profileIcons';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { fetchMatchHistory } from '@/services/history';
 import { useAuthStore } from '@/store/authStore';
 import { MatchHistory } from '@/types';
 import { formatShortDate } from '@/utils/formatters';
+
+function HistoryStat({ icon, text }: { icon: ProfileStatIconKey; text: string }) {
+  return (
+    <View style={styles.stat}>
+      <StatIcon name={icon} variant="compact" />
+      <Text style={styles.statText}>{text}</Text>
+    </View>
+  );
+}
 
 export default function HistoryScreen() {
   const router = useRouter();
@@ -79,26 +90,17 @@ export default function HistoryScreen() {
             <Text style={styles.score}>{item.score}</Text>
           </View>
           <View style={styles.statsRow}>
-            <View style={styles.stat}>
-              <Ionicons name="star" size={14} color={Colors.warning} />
-              <Text style={styles.statText}>{item.rating}</Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={styles.statIcon}>🤝</Text>
-              <Text style={styles.statText}>{item.fairPlay}/5</Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={styles.statIcon}>⚽</Text>
-              <Text style={styles.statText}>
-                {item.goals} but{item.goals > 1 ? 's' : ''}
-              </Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={styles.statIcon}>🅰️</Text>
-              <Text style={styles.statText}>
-                {item.assists} passe{item.assists > 1 ? 's' : ''}
-              </Text>
-            </View>
+            <HistoryStat icon="rating" text={String(item.rating)} />
+            <HistoryStat icon="fairPlay" text={`${item.fairPlay}/5`} />
+            <HistoryStat icon="defense" text={`${item.defRating}/5`} />
+            <HistoryStat
+              icon="goal"
+              text={`${item.goals} but${item.goals > 1 ? 's' : ''}`}
+            />
+            <HistoryStat
+              icon="assist"
+              text={`${item.assists} passe${item.assists > 1 ? 's' : ''}`}
+            />
           </View>
         </Pressable>
       ))}
@@ -136,8 +138,7 @@ const styles = StyleSheet.create({
   title: { ...Typography.bodyBold, color: Colors.text, marginBottom: Spacing.sm },
   resultRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.md },
   score: { ...Typography.h3, color: Colors.text },
-  statsRow: { flexDirection: 'row', gap: Spacing.lg },
+  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  statIcon: { fontSize: 14 },
   statText: { ...Typography.caption, color: Colors.textSecondary },
 });

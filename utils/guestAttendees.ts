@@ -60,6 +60,7 @@ export function buildGuestUser(attendee: MatchAttendee): User | null {
       mvpCount: 0,
       averageRating: 4,
       averageFairPlay: 4,
+      averageDefensiveRating: 3,
       fairPlayScore: 80,
       shotsOnTarget: 0,
       passAccuracy: 0,

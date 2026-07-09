@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { MatchHistory, MatchRecap } from '@/types';
+import { DEFAULT_DEFENSIVE_RATING } from '@/types/matchStats';
 
 export async function fetchMatchHistory(userId: string): Promise<MatchHistory[]> {
   const { data, error } = await supabase
@@ -19,6 +20,7 @@ export async function fetchMatchHistory(userId: string): Promise<MatchHistory[]>
     score: row.score,
     rating: Number(row.rating),
     fairPlay: Number(row.fair_play ?? 4),
+    defRating: Number(row.def_rating ?? DEFAULT_DEFENSIVE_RATING),
     goals: row.goals,
     assists: row.assists,
     mvp: row.mvp,
@@ -40,6 +42,7 @@ export async function addMatchResult(
       score: result.score,
       rating: result.rating,
       fair_play: result.fairPlay ?? 4,
+      def_rating: result.defRating ?? DEFAULT_DEFENSIVE_RATING,
       goals: result.goals,
       assists: result.assists,
       mvp: result.mvp,
@@ -58,6 +61,7 @@ export async function addMatchResult(
     score: data.score,
     rating: Number(data.rating),
     fairPlay: Number(data.fair_play ?? 4),
+    defRating: Number(data.def_rating ?? DEFAULT_DEFENSIVE_RATING),
     goals: data.goals,
     assists: data.assists,
     mvp: data.mvp,
@@ -91,6 +95,7 @@ export async function fetchMatchRecap(matchId: string): Promise<MatchRecap> {
       assists: Number(p.assists ?? 0),
       rating: Number(p.rating ?? 4),
       fairPlay: Number(p.fairPlay ?? 4),
+      defRating: Number(p.defRating ?? DEFAULT_DEFENSIVE_RATING),
       mvp: Boolean(p.mvp),
       result: p.result as string,
     })),

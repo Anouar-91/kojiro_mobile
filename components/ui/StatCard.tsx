@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { ImageSourcePropType, StyleSheet, Text, View } from 'react-native';
 
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 
@@ -6,13 +7,32 @@ interface StatCardProps {
   label: string;
   value: string | number;
   icon?: string;
+  iconSource?: ImageSourcePropType;
+  iconSize?: { width: number; height: number };
   highlight?: boolean;
 }
 
-export function StatCard({ label, value, icon, highlight = false }: StatCardProps) {
+export function StatCard({
+  label,
+  value,
+  icon,
+  iconSource,
+  iconSize,
+  highlight = false,
+}: StatCardProps) {
   return (
     <View style={[styles.card, highlight && styles.highlight]}>
-      {icon && <Text style={styles.icon}>{icon}</Text>}
+      {iconSource ? (
+        <View style={styles.iconSlot}>
+          <Image
+            source={iconSource}
+            style={[styles.iconImage, iconSize]}
+            contentFit="contain"
+          />
+        </View>
+      ) : icon ? (
+        <Text style={styles.icon}>{icon}</Text>
+      ) : null}
       <Text style={[styles.value, highlight && styles.valueHighlight]}>{value}</Text>
       <Text style={styles.label}>{label}</Text>
     </View>
@@ -25,10 +45,12 @@ interface StatGridProps {
 }
 
 export function StatGrid({ stats, columns = 3 }: StatGridProps) {
+  const itemBasis = columns === 3 ? '31%' : '48%';
+
   return (
     <View style={styles.grid}>
       {stats.map((stat, i) => (
-        <View key={i} style={{ width: columns === 3 ? '31%' : '48%' }}>
+        <View key={`${stat.label}-${i}`} style={[styles.gridItem, { flexBasis: itemBasis }]}>
           <StatCard {...stat} />
         </View>
       ))}
@@ -41,7 +63,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.sm,
-    justifyContent: 'space-between',
+  },
+  gridItem: {
+    flexGrow: 1,
+    minWidth: 0,
   },
   card: {
     backgroundColor: Colors.surfaceElevated,
@@ -58,6 +83,17 @@ const styles = StyleSheet.create({
   icon: {
     fontSize: 20,
     marginBottom: Spacing.xs,
+  },
+  iconSlot: {
+    height: 32,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xs,
+  },
+  iconImage: {
+    width: 28,
+    height: 28,
   },
   value: {
     ...Typography.stat,

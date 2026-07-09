@@ -41,6 +41,7 @@ export interface PlayerStats {
   mvpCount: number;
   averageRating: number;
   averageFairPlay: number;
+  averageDefensiveRating: number;
   fairPlayScore: number;
   shotsOnTarget: number;
   passAccuracy: number;
@@ -172,6 +173,7 @@ export interface MatchHistory {
   score: string;
   rating: number;
   fairPlay: number;
+  defRating: number;
   goals: number;
   assists: number;
   mvp: boolean;
@@ -186,6 +188,7 @@ export interface MatchRecapPlayer {
   assists: number;
   rating: number;
   fairPlay: number;
+  defRating: number;
   mvp: boolean;
   result: string;
 }

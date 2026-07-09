@@ -6,6 +6,8 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { PitchFormationReadOnly } from '@/components/match/PitchFormation';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
+import { StatIcon } from '@/components/ui/StatIcon';
+import { ProfileStatIconKey } from '@/constants/profileIcons';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { fetchMatchComposition, getSlotAssignments } from '@/services/composition';
 import { fetchMatchRecap } from '@/services/history';
@@ -34,6 +36,74 @@ function formatAssisters(players: MatchRecapPlayer[]): string {
   return assisters.map((p) => `${p.name} (${p.assists})`).join(', ');
 }
 
+function RecapStatTile({
+  icon,
+  label,
+  value,
+}: {
+  icon: ProfileStatIconKey;
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <View style={styles.myStatItem}>
+      <StatIcon name={icon} variant="large" slotStyle={styles.myStatIconSlot} />
+      <Text style={styles.myStatLabel}>{label}</Text>
+      <Text style={styles.myStatValue}>{value}</Text>
+    </View>
+  );
+}
+
+function MyMatchStatsCard({ stats }: { stats: MatchRecapPlayer }) {
+  return (
+    <View style={styles.myStatsCard}>
+      <View style={styles.myStatsHeader}>
+        <Text style={styles.myStatsTitle}>Ton match</Text>
+        <Badge
+          label={stats.result}
+          variant={
+            stats.result === 'Victoire' ? 'success' : stats.result === 'Défaite' ? 'error' : 'warning'
+          }
+        />
+      </View>
+
+      <View style={styles.myStatsGrid}>
+        <RecapStatTile icon="goal" label="Buts" value={stats.goals} />
+        <RecapStatTile icon="assist" label="Passes" value={stats.assists} />
+        <RecapStatTile icon="defense" label="Défense" value={`${stats.defRating}/5`} />
+        <RecapStatTile icon="fairPlay" label="Fair-play" value={`${stats.fairPlay}/5`} />
+      </View>
+
+      <View style={styles.myGlobalRating}>
+        <View style={styles.myGlobalLeft}>
+          <StatIcon name="rating" variant="large" slotStyle={styles.myGlobalIconSlot} />
+          <View>
+            <Text style={styles.myGlobalLabel}>Note globale</Text>
+            <Text style={styles.myGlobalHint}>Calculée automatiquement</Text>
+          </View>
+        </View>
+        <Text style={styles.myGlobalValue}>{Number(stats.rating).toFixed(1)}</Text>
+      </View>
+
+      {stats.mvp && (
+        <View style={styles.myMvpBanner}>
+          <StatIcon name="mvp" variant="compact" slotStyle={styles.myMvpIconSlot} />
+          <Text style={styles.myMvpText}>MVP du match</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function PlayerStatChip({ icon, value }: { icon: ProfileStatIconKey; value: string }) {
+  return (
+    <View style={styles.playerStatChip}>
+      <StatIcon name={icon} variant="compact" />
+      <Text style={styles.playerStat}>{value}</Text>
+    </View>
+  );
+}
+
 function PlayerStatRow({ player, isMe }: { player: MatchRecapPlayer; isMe: boolean }) {
   return (
     <View style={[styles.playerRow, isMe && styles.playerRowMe]}>
@@ -49,10 +119,21 @@ function PlayerStatRow({ player, isMe }: { player: MatchRecapPlayer; isMe: boole
         </Text>
       </View>
       <View style={styles.playerStats}>
-        <Text style={styles.playerStat}>⚽ {player.goals}</Text>
-        <Text style={styles.playerStat}>🅰️ {player.assists}</Text>
-        <Text style={styles.playerStat}>⭐ {player.rating}</Text>
+        <PlayerStatChip icon="goal" value={String(player.goals)} />
+        <PlayerStatChip icon="assist" value={String(player.assists)} />
+        <PlayerStatChip icon="defense" value={String(player.defRating)} />
+        <PlayerStatChip icon="fairPlay" value={String(player.fairPlay)} />
+        <PlayerStatChip icon="rating" value={String(player.rating)} />
       </View>
+    </View>
+  );
+}
+
+function HighlightRow({ icon, text }: { icon: ProfileStatIconKey; text: string }) {
+  return (
+    <View style={styles.highlightRow}>
+      <StatIcon name={icon} variant="compact" slotStyle={styles.highlightIconSlot} />
+      <Text style={styles.highlightText}>{text}</Text>
     </View>
   );
 }
@@ -167,37 +248,13 @@ export default function MatchRecapScreen() {
         </View>
       </View>
 
-      {myStats && (
-        <View style={styles.myResultCard}>
-          <Badge
-            label={myStats.result}
-            variant={
-              myStats.result === 'Victoire' ? 'success' : myStats.result === 'Défaite' ? 'error' : 'warning'
-            }
-          />
-          <Text style={styles.myResultText}>
-            {myStats.goals} but{myStats.goals > 1 ? 's' : ''} · {myStats.assists} passe
-            {myStats.assists > 1 ? 's' : ''} · ⭐ {myStats.rating} · 🤝 {myStats.fairPlay}/5
-          </Text>
-        </View>
-      )}
+      {myStats && <MyMatchStatsCard stats={myStats} />}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Faits marquants</Text>
-        {recap.mvp && (
-          <View style={styles.highlightRow}>
-            <Text style={styles.highlightIcon}>🏆</Text>
-            <Text style={styles.highlightText}>MVP : {recap.mvp.name}</Text>
-          </View>
-        )}
-        <View style={styles.highlightRow}>
-          <Text style={styles.highlightIcon}>⚽</Text>
-          <Text style={styles.highlightText}>{formatScorers(recap.players)}</Text>
-        </View>
-        <View style={styles.highlightRow}>
-          <Text style={styles.highlightIcon}>🅰️</Text>
-          <Text style={styles.highlightText}>{formatAssisters(recap.players)}</Text>
-        </View>
+        {recap.mvp && <HighlightRow icon="mvp" text={`MVP : ${recap.mvp.name}`} />}
+        <HighlightRow icon="goal" text={formatScorers(recap.players)} />
+        <HighlightRow icon="assist" text={formatAssisters(recap.players)} />
       </View>
 
       {composition && composition.lineups.length > 0 && match && (
@@ -259,21 +316,71 @@ const styles = StyleSheet.create({
   scoreTeamLabel: { ...Typography.caption, color: Colors.textMuted, marginBottom: Spacing.xs },
   scoreValue: { ...Typography.h1, color: Colors.text },
   scoreDivider: { ...Typography.h2, color: Colors.textMuted },
-  myResultCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    backgroundColor: Colors.primaryMuted,
+  myStatsCard: {
+    backgroundColor: Colors.surfaceElevated,
     borderRadius: 12,
     padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(57, 255, 20, 0.2)',
+    borderColor: Colors.border,
+    gap: Spacing.md,
   },
-  myResultText: { ...Typography.body, color: Colors.text, flex: 1 },
+  myStatsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  myStatsTitle: { ...Typography.bodyBold, color: Colors.text },
+  myStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  myStatItem: {
+    width: '48%',
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  myStatIconSlot: { marginBottom: Spacing.xs },
+  myStatLabel: { ...Typography.caption, color: Colors.textMuted, marginBottom: 4 },
+  myStatValue: { ...Typography.h3, color: Colors.text, fontWeight: '800' },
+  myGlobalRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.primaryMuted,
+    borderRadius: 10,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(57, 255, 20, 0.25)',
+  },
+  myGlobalLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  myGlobalIconSlot: { marginBottom: 0 },
+  myGlobalLabel: { ...Typography.bodyBold, color: Colors.textSecondary },
+  myGlobalHint: { ...Typography.small, color: Colors.textMuted, marginTop: 2 },
+  myGlobalValue: { fontSize: 28, fontWeight: '900', color: Colors.primary },
+  myMvpBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingTop: Spacing.xs,
+  },
+  myMvpIconSlot: { marginBottom: 0 },
+  myMvpText: { ...Typography.bodyBold, color: Colors.primary },
   section: { gap: Spacing.sm },
   sectionTitle: { ...Typography.h3, color: Colors.text, marginBottom: Spacing.xs },
   highlightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
-  highlightIcon: { fontSize: 16, marginTop: 2 },
+  highlightIconSlot: { width: 24, marginTop: 2 },
   highlightText: { ...Typography.body, color: Colors.textSecondary, flex: 1 },
   teamTitle: { ...Typography.bodyBold, color: Colors.text, marginTop: Spacing.sm },
   playerRow: {
@@ -290,6 +397,7 @@ const styles = StyleSheet.create({
   playerName: { ...Typography.bodyBold, color: Colors.text },
   meLabel: { ...Typography.caption, color: Colors.primary },
   playerMeta: { ...Typography.caption, color: Colors.textMuted },
-  playerStats: { flexDirection: 'row', gap: Spacing.sm },
-  playerStat: { ...Typography.caption, color: Colors.textSecondary },
+  playerStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, maxWidth: 130, justifyContent: 'flex-end' },
+  playerStatChip: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  playerStat: { ...Typography.small, color: Colors.textSecondary },
 });

@@ -3,10 +3,15 @@ import { useRouter } from 'expo-router';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BadgeGrid, LevelProgress, ProfileHeader } from '@/components/profile/ProfileComponents';
+import {
+  BadgeGrid,
+  LevelProgress,
+  ProfileGlobalRating,
+  ProfileHeader,
+  ProfileSeasonStatsGrid,
+  ProfileSectionTitle,
+} from '@/components/profile/ProfileComponents';
 import { Button } from '@/components/ui/Button';
-import { SectionHeader } from '@/components/ui/SectionHeader';
-import { StatGrid } from '@/components/ui/StatCard';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 
@@ -36,49 +41,66 @@ export default function ProfileScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.sm }]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.topBar}>
-        <Text style={styles.title}>Profil</Text>
-        <Pressable onPress={() => router.push('/profile/edit')}>
-          <Ionicons name="create-outline" size={24} color={Colors.primary} />
-        </Pressable>
-      </View>
+      <ProfileHeader
+        user={user}
+        onEdit={() => router.push('/profile/edit')}
+      />
 
-      <ProfileHeader user={user} />
+      <LevelProgress user={user} />
 
-      <View style={styles.section}>
-        <LevelProgress user={user} />
-      </View>
-
-      <SectionHeader title="Stats de la saison" />
-      <StatGrid
+      <ProfileSectionTitle title="Stats de la saison" />
+      <ProfileGlobalRating user={user} />
+      <ProfileSeasonStatsGrid
         stats={[
-          { label: 'Matchs', value: user.stats.matchesPlayed, icon: '⚽' },
-          { label: 'Buts', value: user.stats.goals, icon: '🎯' },
-          { label: 'Passes', value: user.stats.assists, icon: '🅰️' },
-          { label: 'Note moy.', value: user.stats.averageRating, icon: '⭐' },
-          { label: 'MVP', value: user.stats.mvpCount, icon: '🏆' },
-          { label: 'Fair-play', value: `${user.stats.averageFairPlay}/5`, icon: '🤝' },
+          { key: 'match', label: 'Matchs', value: user.stats.matchesPlayed },
+          { key: 'goal', label: 'Buts', value: user.stats.goals },
+          { key: 'assist', label: 'Passes', value: user.stats.assists },
+          { key: 'mvp', label: 'MVP', value: user.stats.mvpCount },
+          {
+            key: 'fairPlay',
+            label: 'Fair-play',
+            value: `${Number(user.stats.averageFairPlay).toFixed(1)}/5`,
+            accent: true,
+          },
+          {
+            key: 'defense',
+            label: 'Défense',
+            value: `${Number(user.stats.averageDefensiveRating).toFixed(1)}/5`,
+            accent: true,
+          },
         ]}
       />
 
-      <SectionHeader title="Badges" />
+      <ProfileSectionTitle
+        title="Badges"
+        action="Voir tous"
+        onAction={() => {}}
+      />
       <BadgeGrid badges={user.badges} />
 
-      <SectionHeader title="Menu" />
-      {MENU_ITEMS.map((item) => (
-        <Pressable
-          key={item.route}
-          style={styles.menuItem}
-          onPress={() => router.push(item.route as never)}
-        >
-          <Ionicons name={item.icon as keyof typeof Ionicons.glyphMap} size={22} color={Colors.textSecondary} />
-          <Text style={styles.menuLabel}>{item.label}</Text>
-          <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-        </Pressable>
-      ))}
+      <ProfileSectionTitle title="Menu" />
+      <View style={styles.menuList}>
+        {MENU_ITEMS.map((item) => (
+          <Pressable
+            key={item.route}
+            style={styles.menuItem}
+            onPress={() => router.push(item.route as never)}
+          >
+            <View style={styles.menuIconWrap}>
+              <Ionicons
+                name={item.icon as keyof typeof Ionicons.glyphMap}
+                size={20}
+                color={Colors.primary}
+              />
+            </View>
+            <Text style={styles.menuLabel}>{item.label}</Text>
+            <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+          </Pressable>
+        ))}
+      </View>
 
       <Button
         title="Se déconnecter"
@@ -96,21 +118,27 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   content: { paddingHorizontal: Spacing.xxl },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: Spacing.lg,
+  menuList: {
+    gap: Spacing.sm,
   },
-  title: { ...Typography.h1, color: Colors.text },
-  section: { marginBottom: Spacing.lg },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
     gap: Spacing.md,
+  },
+  menuIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: Colors.primaryMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   menuLabel: { ...Typography.body, color: Colors.text, flex: 1 },
   logout: { marginTop: Spacing.xxl, marginBottom: Spacing.lg },

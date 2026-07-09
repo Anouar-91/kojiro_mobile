@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   stats JSONB NOT NULL DEFAULT '{
     "matchesPlayed": 0, "goals": 0, "assists": 0,
     "wins": 0, "losses": 0, "draws": 0, "mvpCount": 0,
-    "averageRating": 4.0, "fairPlayScore": 90,
+    "averageRating": 4.0, "fairPlayScore": 90, "averageDefensiveRating": 3.0,
     "shotsOnTarget": 0, "passAccuracy": 0, "minutesPlayed": 0
   }'::jsonb,
   badges JSONB NOT NULL DEFAULT '[]'::jsonb,
