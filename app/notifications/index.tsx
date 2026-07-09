@@ -11,6 +11,7 @@ const NOTIF_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   match_invite: 'mail-open-outline',
   match_waitlist: 'hourglass-outline',
   friend_request: 'person-add-outline',
+  friend_match_created: 'football-outline',
   match_reminder: 'alarm-outline',
   match_recap: 'document-text-outline',
   match_stats: 'football-outline',
@@ -31,7 +32,7 @@ function getNotificationRoute(notif: Notification): string | null {
   if (matchId && notif.type === 'match_stats') {
     return `/match/stats?id=${matchId}`;
   }
-  if (matchId && (notif.type === 'match_invite' || notif.type === 'match_reminder' || notif.type === 'team_assigned' || notif.type === 'match_waitlist')) {
+  if (matchId && (notif.type === 'match_invite' || notif.type === 'match_reminder' || notif.type === 'team_assigned' || notif.type === 'match_waitlist' || notif.type === 'friend_match_created')) {
     return `/match/${matchId}`;
   }
   if (notif.type === 'tournament') return '/tournament';

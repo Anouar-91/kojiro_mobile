@@ -1,8 +1,9 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChatBubble } from '@/components/chat/ChatComponents';
 import { Colors, Spacing } from '@/constants/theme';
@@ -36,6 +38,14 @@ export default function MatchChatScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const fetchNotifications = useMatchStore((s) => s.fetchNotifications);
+  const listRef = useRef<FlatList<ChatMessage>>(null);
+  const insets = useSafeAreaInsets();
+
+  const scrollToLatest = useCallback((animated = true) => {
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToEnd({ animated });
+    });
+  }, []);
 
   const syncRead = useCallback(async () => {
     if (!match || !user) return;
@@ -98,6 +108,19 @@ export default function MatchChatScreen() {
     };
   }, [match, user, syncRead]);
 
+  useEffect(() => {
+    scrollToLatest(false);
+  }, [messages.length, scrollToLatest]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const subscription = Keyboard.addListener(showEvent, (event) => {
+      const delay = Platform.OS === 'ios' ? event.duration ?? 250 : 100;
+      setTimeout(() => scrollToLatest(), delay);
+    });
+    return () => subscription.remove();
+  }, [scrollToLatest]);
+
   const handleSend = async () => {
     if (!input.trim() || !user || !match || sending) return;
     setSending(true);
@@ -106,6 +129,7 @@ export default function MatchChatScreen() {
       setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
       setSenders((prev) => ({ ...prev, [user.id]: user }));
       setInput('');
+      setTimeout(() => scrollToLatest(), 50);
     } finally {
       setSending(false);
     }
@@ -122,13 +146,20 @@ export default function MatchChatScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={90}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <FlatList
+        ref={listRef}
         data={messages}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        style={styles.listFlex}
+        contentContainerStyle={[
+          styles.list,
+          messages.length > 0 && styles.listWithMessages,
+        ]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        onContentSizeChange={() => scrollToLatest(false)}
         renderItem={({ item }) => {
           const sender = item.senderId === user?.id ? user : senders[item.senderId];
           return (
@@ -145,7 +176,7 @@ export default function MatchChatScreen() {
         }
       />
 
-      <View style={styles.inputBar}>
+      <View style={[styles.inputBar, { paddingBottom: Spacing.md + insets.bottom }]}>
         <TextInput
           style={styles.input}
           placeholder="Écrire un message..."
@@ -153,6 +184,7 @@ export default function MatchChatScreen() {
           value={input}
           onChangeText={setInput}
           multiline
+          blurOnSubmit={false}
         />
         <Pressable style={styles.sendBtn} onPress={handleSend} disabled={sending}>
           {sending ? (
@@ -169,7 +201,9 @@ export default function MatchChatScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
+  listFlex: { flex: 1 },
   list: { padding: Spacing.lg, flexGrow: 1 },
+  listWithMessages: { justifyContent: 'flex-end' },
   empty: { color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.xxxl },
   inputBar: {
     flexDirection: 'row',
