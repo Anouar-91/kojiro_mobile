@@ -164,8 +164,8 @@ export default function TeamsScreen() {
       setTeamBIds(bIds);
       setFormationLayoutA(layoutA);
       setFormationLayoutB(layoutB);
-      setSlotsA(autoToSlotAssignments(autoFillLineup(aIds, slotsABuilt)));
-      setSlotsB(autoToSlotAssignments(autoFillLineup(bIds, slotsBBuilt)));
+      setSlotsA(autoToSlotAssignments(autoFillLineup(aIds, slotsABuilt, (id) => players.find((p) => p.id === id)?.position)));
+      setSlotsB(autoToSlotAssignments(autoFillLineup(bIds, slotsBBuilt, (id) => players.find((p) => p.id === id)?.position)));
     },
     []
   );
@@ -354,7 +354,8 @@ export default function TeamsScreen() {
     const ids = side === 'A' ? teamAIds : teamBIds;
     const slots = side === 'A' ? formationSlotsA : formationSlotsB;
     const setter = side === 'A' ? setSlotsA : setSlotsB;
-    setter(autoToSlotAssignments(autoFillLineup(ids, slots)));
+    const getPosition = (id: string) => resolveUser(id)?.position;
+    setter(autoToSlotAssignments(autoFillLineup(ids, slots, getPosition)));
   };
 
   const handleSave = async () => {

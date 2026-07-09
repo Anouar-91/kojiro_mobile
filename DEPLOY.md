@@ -65,6 +65,8 @@ supabase/migrations/009_friendships.sql
 supabase/migrations/010_profile_location.sql
 supabase/migrations/011_match_composition.sql
 supabase/migrations/023_match_guest_attendees.sql
+supabase/migrations/024_match_recruitment_closed.sql
+supabase/migrations/025_guest_position.sql
 ```
 
 ### Auth (développement)

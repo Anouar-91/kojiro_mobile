@@ -28,17 +28,19 @@ export function MatchOrganizerSteps({ match, presentCount, hasComposition }: Mat
         return 'done';
       case 'compose':
         if (hasComposition) return 'done';
-        if (presentCount >= 2 && match.status === 'upcoming') return 'current';
-        if (match.status === 'live' || match.status === 'completed') return hasComposition ? 'done' : 'pending';
+        if (presentCount >= 2 && match.status === 'upcoming' && !match.recruitmentClosed) return 'current';
+        if (match.recruitmentClosed || match.status === 'live' || match.status === 'completed') {
+          return hasComposition ? 'done' : 'pending';
+        }
         return 'pending';
       case 'play':
         if (match.status === 'completed') return 'done';
-        if (match.status === 'live') return 'current';
+        if (match.recruitmentClosed || match.status === 'live') return 'current';
         if (hasComposition && match.status === 'upcoming') return 'current';
         return 'pending';
       case 'finish':
         if (match.status === 'completed') return 'done';
-        if (match.status === 'live') return 'current';
+        if (match.recruitmentClosed || match.status === 'live') return 'current';
         return 'pending';
       default:
         return 'pending';

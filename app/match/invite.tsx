@@ -18,7 +18,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { useProfileStore } from '@/store/profileStore';
 import { User } from '@/types';
-import { canChangeAttendance } from '@/utils/matchAttendance';
+import { canInvitePlayers } from '@/utils/matchAttendance';
 
 export default function InvitePlayersScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -100,7 +100,7 @@ export default function InvitePlayersScreen() {
     );
   }
 
-  if (!canChangeAttendance(match)) {
+  if (!canInvitePlayers(match)) {
     return (
       <View style={styles.centered}>
         <Text style={styles.muted}>Ce match n'accepte plus d'invitations.</Text>

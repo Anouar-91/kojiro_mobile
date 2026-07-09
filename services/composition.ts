@@ -63,11 +63,6 @@ export async function saveMatchComposition(
   if (error) throw new Error(error.message);
 }
 
-export async function startMatch(matchId: string): Promise<void> {
-  const { error } = await supabase.rpc('start_match', { p_match_id: matchId });
-  if (error) throw new Error(error.message);
-}
-
 export function getTeamPlayerIds(composition: MatchComposition | null, side: TeamSide): string[] {
   if (!composition) return [];
   return composition.lineups.filter((l) => l.teamSide === side).map((l) => l.userId);

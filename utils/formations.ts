@@ -1,4 +1,5 @@
 import { FormationSlot } from '@/types/lineup';
+import { Position } from '@/types';
 
 export interface FormationLayout {
   def: number;
@@ -107,13 +108,29 @@ export function getFormationLabel(playersPerTeam: number): string {
 
 export function autoFillLineup(
   playerIds: string[],
-  slots: FormationSlot[]
+  slots: FormationSlot[],
+  getPosition?: (playerId: string) => Position | undefined
 ): Record<string, string> {
   const map: Record<string, string> = {};
-  const slotIds = slots.map((s) => s.id);
-  playerIds.forEach((id, i) => {
-    map[id] = i < slotIds.length ? slotIds[i] : 'bench';
-  });
+  const pool = [...playerIds];
+
+  const takePlayer = (role?: Position): string | undefined => {
+    if (role && getPosition) {
+      const idx = pool.findIndex((id) => getPosition(id) === role);
+      if (idx >= 0) return pool.splice(idx, 1)[0];
+    }
+    return pool.shift();
+  };
+
+  for (const slot of slots) {
+    const player = takePlayer(getPosition ? slot.role : undefined);
+    if (player) map[player] = slot.id;
+  }
+
+  for (const id of pool) {
+    map[id] = 'bench';
+  }
+
   return map;
 }
 

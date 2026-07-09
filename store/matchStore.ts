@@ -7,7 +7,7 @@ import {
 } from '@/services/notifications';
 import { createMatch as createMatchApi, fetchMatchById, fetchMatches, addGuestToMatch as addGuestToMatchApi, removeAttendeeById as removeAttendeeByIdApi, removeAttendeeByOrganizer as removeAttendeeByOrganizerApi, RealtimeAttendeeRow, upsertAttendance } from '@/services/matches';
 import { createNotification } from '@/services/notifications';
-import { AttendanceStatus, Match, MatchAttendee, MatchFormat, MatchVisibility, Notification } from '@/types';
+import { AttendanceStatus, Match, MatchAttendee, MatchFormat, MatchVisibility, Notification, Position } from '@/types';
 
 interface CreateMatchData {
   title: string;
@@ -36,7 +36,7 @@ interface MatchState {
   createMatch: (data: CreateMatchData, organizerId: string) => Promise<Match>;
   updateAttendance: (matchId: string, userId: string, status: AttendanceStatus) => Promise<void>;
   removeAttendeeByOrganizer: (matchId: string, userId: string) => Promise<void>;
-  addGuestToMatch: (matchId: string, guestName: string) => Promise<void>;
+  addGuestToMatch: (matchId: string, guestName: string, guestPosition?: Position | null) => Promise<void>;
   removeAttendeeById: (matchId: string, attendeeId: string) => Promise<void>;
   syncAttendeeFromRealtime: (row: RealtimeAttendeeRow) => void;
   removeAttendeeFromRealtime: (matchId: string, attendeeId: string) => void;
@@ -123,8 +123,8 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     }));
   },
 
-  addGuestToMatch: async (matchId, guestName) => {
-    const attendeeId = await addGuestToMatchApi(matchId, guestName);
+  addGuestToMatch: async (matchId, guestName, guestPosition) => {
+    const attendeeId = await addGuestToMatchApi(matchId, guestName, guestPosition);
     set((state) => ({
       matches: state.matches.map((match) => {
         if (match.id !== matchId) return match;
@@ -137,6 +137,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
             {
               id: attendeeId,
               guestName: guestName.trim(),
+              guestPosition: guestPosition ?? undefined,
               status: 'present' as const,
             },
           ],
@@ -163,6 +164,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
       id: row.id,
       userId: row.user_id ?? undefined,
       guestName: row.guest_name ?? undefined,
+      guestPosition: (row.guest_position as Position) ?? undefined,
       status: row.status as AttendanceStatus,
       teamId: row.team_id ?? undefined,
       joinedAt: row.created_at,

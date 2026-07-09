@@ -34,6 +34,9 @@ export function UpcomingMatchCard({ match, onPress, distance }: UpcomingMatchCar
         <View style={styles.badges}>
           <Badge label={getMatchFormatDescription(match.format, match.substitutesPerTeam)} variant="primary" />
           {match.status === 'live' && <Badge label="En cours" variant="warning" />}
+          {match.recruitmentClosed && match.status === 'upcoming' && (
+            <Badge label="Recrutement clos" variant="secondary" />
+          )}
           {match.visibility === 'friends_only' && <Badge label="Amis" variant="secondary" />}
           {full && <Badge label="Complet" variant="secondary" />}
         </View>

@@ -1,12 +1,16 @@
 import { mapDbMatchToMatch } from '@/lib/mappers';
 import { supabase } from '@/lib/supabase';
 import { fetchFriendIds } from '@/services/friends';
-import { AttendanceStatus, Match, MatchFormat, MatchVisibility } from '@/types';
-import { canSetPresent, isAttendanceLocked, getAttendanceLockMessage, isMatchFull } from '@/utils/matchAttendance';
+import { AttendanceStatus, Match, MatchFormat, MatchVisibility, Position } from '@/types';
+import {
+  canSetPresent,
+  isMatchFull,
+  validateAttendanceChange,
+} from '@/utils/matchAttendance';
 
 const MATCH_SELECT = `
   *,
-  match_attendees ( id, match_id, user_id, guest_name, status, team_id, created_at )
+  match_attendees ( id, match_id, user_id, guest_name, guest_position, status, team_id, created_at )
 `;
 
 export async function fetchMatches(userId?: string): Promise<Match[]> {
@@ -104,8 +108,8 @@ export async function upsertAttendance(
   status: AttendanceStatus
 ): Promise<void> {
   const match = await fetchMatchById(matchId);
-  if (match && isAttendanceLocked(match)) {
-    throw new Error(getAttendanceLockMessage(match.status));
+  if (match) {
+    validateAttendanceChange(match, userId, status);
   }
   if (
     match?.visibility === 'friends_only' &&
@@ -139,6 +143,16 @@ export async function upsertAttendance(
   if (error) throw new Error(error.message);
 }
 
+export async function closeMatchRecruitment(matchId: string): Promise<void> {
+  const { error } = await supabase.rpc('close_match_recruitment', { p_match_id: matchId });
+  if (error) throw new Error(error.message);
+}
+
+export async function reopenMatchRecruitment(matchId: string): Promise<void> {
+  const { error } = await supabase.rpc('reopen_match_recruitment', { p_match_id: matchId });
+  if (error) throw new Error(error.message);
+}
+
 export async function removeAttendeeByOrganizer(matchId: string, userId: string): Promise<void> {
   const { error } = await supabase.rpc('organizer_remove_attendee', {
     p_match_id: matchId,
@@ -147,10 +161,15 @@ export async function removeAttendeeByOrganizer(matchId: string, userId: string)
   if (error) throw new Error(error.message);
 }
 
-export async function addGuestToMatch(matchId: string, guestName: string): Promise<string> {
+export async function addGuestToMatch(
+  matchId: string,
+  guestName: string,
+  guestPosition?: Position | null
+): Promise<string> {
   const { data, error } = await supabase.rpc('organizer_add_guest', {
     p_match_id: matchId,
     p_guest_name: guestName.trim(),
+    p_guest_position: guestPosition ?? null,
   });
   if (error) throw new Error(error.message);
   return data as string;
@@ -202,6 +221,7 @@ export interface RealtimeAttendeeRow {
   match_id: string;
   user_id: string | null;
   guest_name?: string | null;
+  guest_position?: string | null;
   status: string;
   team_id?: string | null;
   created_at: string;

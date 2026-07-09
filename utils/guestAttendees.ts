@@ -1,4 +1,4 @@
-import { Match, MatchAttendee, User } from '@/types';
+import { Match, MatchAttendee, Position, User } from '@/types';
 
 export const GUEST_PLAYER_ID_PREFIX = 'guest:';
 
@@ -29,7 +29,7 @@ export function buildGuestUser(attendee: MatchAttendee): User | null {
     email: '',
     name: attendee.guestName,
     avatar: '',
-    position: 'MID',
+    position: attendee.guestPosition ?? 'MID',
     foot: 'Droit',
     level: 5,
     xp: 0,

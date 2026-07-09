@@ -30,7 +30,9 @@ export function PlayerRow({ user, skillScore, showSkill = false, rightElement }:
           {user.isGuest && <Badge label="Invité" variant="secondary" />}
         </View>
         <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
-          {user.isGuest ? 'Sans compte Kojiro' : `${getPositionLabel(user.position)} · Niv. ${user.level}`}
+          {user.isGuest
+            ? `${getPositionLabel(user.position)} · Invité`
+            : `${getPositionLabel(user.position)} · Niv. ${user.level}`}
         </Text>
       </View>
       {showSkill && (
@@ -130,12 +132,16 @@ interface AttendanceActionsProps {
   currentStatus: string;
   onStatusChange: (status: 'present' | 'absent' | 'maybe') => void;
   canSetPresent?: boolean;
+  canSetMaybe?: boolean;
+  canSetAbsent?: boolean;
 }
 
 export function AttendanceActions({
   currentStatus,
   onStatusChange,
   canSetPresent = true,
+  canSetMaybe = true,
+  canSetAbsent = true,
 }: AttendanceActionsProps) {
   const options = [
     { status: 'present' as const, label: 'Présent', icon: 'checkmark-circle', color: Colors.success },
@@ -146,18 +152,21 @@ export function AttendanceActions({
   return (
     <View style={styles.actions}>
       {options.map((opt) => {
-        const disabled = opt.status === 'present' && !canSetPresent && currentStatus !== 'present';
+        const isPresentDisabled = opt.status === 'present' && !canSetPresent && currentStatus !== 'present';
+        const isMaybeDisabled = opt.status === 'maybe' && !canSetMaybe;
+        const isAbsentDisabled = opt.status === 'absent' && !canSetAbsent;
+        const isDisabled = isPresentDisabled || isMaybeDisabled || isAbsentDisabled;
         return (
         <Pressable
           key={opt.status}
           style={[
             styles.actionBtn,
             currentStatus === opt.status && { borderColor: opt.color, backgroundColor: `${opt.color}20` },
-            disabled && styles.actionBtnDisabled,
+            isDisabled && styles.actionBtnDisabled,
           ]}
-          disabled={disabled}
+          disabled={isDisabled}
           onPress={() => {
-            if (disabled) return;
+            if (isDisabled) return;
             Haptics.selectionAsync();
             onStatusChange(opt.status);
           }}
@@ -165,13 +174,13 @@ export function AttendanceActions({
           <Ionicons
             name={opt.icon as keyof typeof Ionicons.glyphMap}
             size={22}
-            color={disabled ? Colors.textMuted : currentStatus === opt.status ? opt.color : Colors.textMuted}
+            color={isDisabled ? Colors.textMuted : currentStatus === opt.status ? opt.color : Colors.textMuted}
           />
           <Text
             style={[
               styles.actionLabel,
               currentStatus === opt.status && { color: opt.color },
-              disabled && styles.actionLabelDisabled,
+              isDisabled && styles.actionLabelDisabled,
             ]}
           >
             {opt.label}

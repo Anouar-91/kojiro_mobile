@@ -14,22 +14,30 @@ import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useMatchChatUnread } from '@/hooks/useMatchChatUnread';
-import { fetchMatchComposition, startMatch } from '@/services/composition';
+import { closeMatchRecruitment, reopenMatchRecruitment } from '@/services/matches';
+import { fetchMatchComposition } from '@/services/composition';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
 import { useMatchStore } from '@/store/matchStore';
 import { getUsersByAttendance, useProfileStore } from '@/store/profileStore';
-import { AttendanceStatus, User } from '@/types';
+import { AttendanceStatus, Position, User } from '@/types';
 import { formatMatchDate, formatPrice, getMatchFormatDescription } from '@/utils/formatters';
 import {
+  canAddToRoster,
+  canChangeToAbsent,
+  canChangeToMaybe,
+  canChangeToPresent,
+  canClaimWaitlistSpot,
   canJoinWaitlist,
   canManageRoster as canOrganizerManageRoster,
-  canChangeAttendance,
+  canUseFullAttendanceUI,
   canSetPresent,
   getAttendanceLockMessage,
   getWaitlistPosition,
+  isAttendanceFullyLocked,
   isMatchFull,
   isOnWaitlist,
+  isRecruitmentClosed,
 } from '@/utils/matchAttendance';
 import { isGuestPlayerId, parseGuestPlayerId } from '@/utils/guestAttendees';
 
@@ -90,9 +98,15 @@ export default function MatchDetailScreen() {
 
   const isOrganizer = user?.id === match.organizerId;
   const isCompleted = match.status === 'completed';
-  const attendanceOpen = canChangeAttendance(match);
+  const recruitmentClosed = isRecruitmentClosed(match);
+  const attendanceFullyLocked = isAttendanceFullyLocked(match);
+  const attendanceOpen = canUseFullAttendanceUI(match);
   const matchIsFull = isMatchFull(match);
   const userCanSetPresent = user ? canSetPresent(match, user.id) : false;
+  const userCanChangeToPresent = user ? canChangeToPresent(match, user.id) : false;
+  const userCanChangeToMaybe = canChangeToMaybe(match);
+  const userCanChangeToAbsent = user ? canChangeToAbsent(match, user.id) : false;
+  const userCanClaimWaitlistSpot = user ? canClaimWaitlistSpot(match, user.id) : false;
   const userOnWaitlist = user ? isOnWaitlist(match, user.id) : false;
   const waitlistPosition = user ? getWaitlistPosition(match, user.id) : null;
   const userCanJoinWaitlist = user ? canJoinWaitlist(match, user.id) : false;
@@ -126,6 +140,7 @@ export default function MatchDetailScreen() {
   };
 
   const canManageRoster = canOrganizerManageRoster(match, isOrganizer);
+  const canAddPlayers = canAddToRoster(match, isOrganizer);
   const handleRemovePlayer = (player: User) => {
     if (!canManageRoster || player.id === match.organizerId) return;
     Alert.alert(
@@ -155,18 +170,49 @@ export default function MatchDetailScreen() {
     );
   };
 
-  const handleAddGuest = async (guestName: string) => {
-    await addGuestToMatch(match.id, guestName);
+  const handleAddGuest = async (guestName: string, guestPosition: Position | null) => {
+    await addGuestToMatch(match.id, guestName, guestPosition);
     await fetchMatches(user?.id);
   };
 
-  const handleStartMatch = async () => {
+  const handleCloseRecruitment = async () => {
+    Alert.alert(
+      'Fermer le recrutement',
+      'Les joueurs ne pourront plus s\'inscrire ni être invités. Ils pourront toujours se désister en cas d\'empêchement.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Fermer',
+          onPress: async () => {
+            try {
+              await closeMatchRecruitment(match.id);
+              await fetchMatches(user?.id);
+              Alert.alert('Recrutement clos', 'L\'effectif est figé. Les joueurs peuvent encore se désister si besoin.');
+            } catch (e) {
+              Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de fermer le recrutement');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleReopenRecruitment = async () => {
     try {
-      await startMatch(match.id);
+      await reopenMatchRecruitment(match.id);
       await fetchMatches(user?.id);
-      Alert.alert("C'est parti !", 'Le match est en cours. Bon jeu !');
     } catch (e) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de démarrer');
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de rouvrir le recrutement');
+    }
+  };
+
+  const handleClaimWaitlistSpot = async () => {
+    if (!user) return;
+    try {
+      await updateAttendance(match.id, user.id, 'present');
+      Alert.alert('Place confirmée', 'Tu es inscrit comme présent pour ce match.');
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de confirmer ta place');
     }
   };
 
@@ -182,6 +228,7 @@ export default function MatchDetailScreen() {
           {isFriendsOnly && <Badge label="Entre amis" variant="secondary" />}
           {isCompleted && <Badge label="Terminé" variant="success" />}
           {match.status === 'live' && <Badge label="En cours" variant="primary" />}
+          {recruitmentClosed && <Badge label="Recrutement clos" variant="secondary" />}
           {matchIsFull && !isCompleted && <Badge label="Complet" variant="secondary" />}
         </View>
         <Text style={styles.title}>{match.title}</Text>
@@ -223,12 +270,54 @@ export default function MatchDetailScreen() {
           <Text style={styles.restricted}>
             Match réservé aux amis de l'organisateur. Ajoute-le en ami pour participer.
           </Text>
-        ) : !attendanceOpen ? (
+        ) : attendanceFullyLocked ? (
           <>
-            <Text style={styles.lockedMessage}>{getAttendanceLockMessage(match.status)}</Text>
+            <Text style={styles.lockedMessage}>{getAttendanceLockMessage(match)}</Text>
             <Text style={styles.lockedStatus}>
               Ta réponse : {ATTENDANCE_LABELS[myAttendance]}
             </Text>
+            <ProgressBar
+              progress={presentUsers.length / match.maxPlayers}
+              label={`${presentUsers.length}/${match.maxPlayers} confirmés`}
+              showLabel
+            />
+          </>
+        ) : !attendanceOpen ? (
+          <>
+            <Text style={styles.lockedMessage}>{getAttendanceLockMessage(match)}</Text>
+            <AttendanceActions
+              currentStatus={myAttendance}
+              onStatusChange={handleStatusChange}
+              canSetPresent={userCanChangeToPresent && userCanSetPresent}
+              canSetMaybe={userCanChangeToMaybe}
+              canSetAbsent={userCanChangeToAbsent}
+            />
+            {userCanClaimWaitlistSpot && (
+              <Button
+                title="Confirmer ma place"
+                onPress={handleClaimWaitlistSpot}
+                icon="checkmark-circle-outline"
+                fullWidth
+                style={styles.waitlistBtn}
+              />
+            )}
+            {userOnWaitlist && !userCanClaimWaitlistSpot && waitlistPosition != null && (
+              <View style={styles.waitlistBanner}>
+                <Ionicons name="time-outline" size={18} color={Colors.primary} />
+                <Text style={styles.waitlistText}>
+                  En liste d'attente (inscrit n°{waitlistPosition}) — réagis vite quand tu reçois la notif
+                </Text>
+              </View>
+            )}
+            {userOnWaitlist && userCanChangeToAbsent && (
+              <Button
+                title="Quitter la liste d'attente"
+                onPress={handleLeaveWaitlist}
+                variant="ghost"
+                fullWidth
+                size="sm"
+              />
+            )}
             <ProgressBar
               progress={presentUsers.length / match.maxPlayers}
               label={`${presentUsers.length}/${match.maxPlayers} confirmés`}
@@ -241,6 +330,8 @@ export default function MatchDetailScreen() {
               currentStatus={myAttendance}
               onStatusChange={handleStatusChange}
               canSetPresent={userCanSetPresent}
+              canSetMaybe={userCanChangeToMaybe}
+              canSetAbsent={userCanChangeToAbsent}
             />
             {matchIsFull && myAttendance !== 'present' && !userOnWaitlist && (
               <Text style={styles.fullHint}>
@@ -328,12 +419,22 @@ export default function MatchDetailScreen() {
       )}
 
       <View style={styles.actions}>
-        {isOrganizer && !isCompleted && match.status === 'upcoming' && hasComposition && (
+        {isOrganizer && !isCompleted && match.status === 'upcoming' && !recruitmentClosed && (
           <Button
-            title="Démarrer le match"
-            onPress={handleStartMatch}
-            icon="play-circle-outline"
+            title="Fermer le recrutement"
+            onPress={handleCloseRecruitment}
+            icon="lock-closed-outline"
             fullWidth
+            variant="outline"
+          />
+        )}
+        {isOrganizer && !isCompleted && match.status === 'upcoming' && recruitmentClosed && (
+          <Button
+            title="Rouvrir le recrutement"
+            onPress={handleReopenRecruitment}
+            icon="lock-open-outline"
+            fullWidth
+            variant="outline"
           />
         )}
         {isOrganizer && !isCompleted && (
@@ -342,7 +443,7 @@ export default function MatchDetailScreen() {
             onPress={() => router.push({ pathname: '/match/complete', params: { id: match.id } })}
             icon="flag-outline"
             fullWidth
-            variant={match.status === 'live' ? 'primary' : 'secondary'}
+            variant={recruitmentClosed || match.status === 'live' ? 'primary' : 'secondary'}
           />
         )}
         {!isCompleted && (
@@ -377,7 +478,7 @@ export default function MatchDetailScreen() {
             </View>
           </>
         )}
-        {!isCompleted && match.status === 'upcoming' && (
+        {!isCompleted && canAddPlayers && (
           <>
             <Button
               title="Inviter des joueurs"
@@ -386,15 +487,13 @@ export default function MatchDetailScreen() {
               icon="person-add-outline"
               fullWidth
             />
-            {isOrganizer && canManageRoster && (
-              <Button
-                title="Ajouter sans appli"
-                onPress={() => setGuestModalVisible(true)}
-                variant="outline"
-                icon="person-outline"
-                fullWidth
-              />
-            )}
+            <Button
+              title="Ajouter sans appli"
+              onPress={() => setGuestModalVisible(true)}
+              variant="outline"
+              icon="person-outline"
+              fullWidth
+            />
           </>
         )}
         <AddGuestPlayerModal

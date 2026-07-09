@@ -66,6 +66,7 @@ export type DbMatch = {
   max_players: number;
   visibility: string;
   status: string;
+  recruitment_closed: boolean;
   image_url: string | null;
   tournament_id: string | null;
   created_at: string;
@@ -77,6 +78,7 @@ export type DbAttendee = {
   match_id: string;
   user_id: string | null;
   guest_name: string | null;
+  guest_position: string | null;
   status: string;
   team_id: string | null;
   created_at?: string;

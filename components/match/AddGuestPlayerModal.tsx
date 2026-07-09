@@ -11,13 +11,23 @@ import {
 } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
+import { ChipGroup } from '@/components/ui/Chip';
 import { Input } from '@/components/ui/Input';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
+import { Position } from '@/types';
+
+const POSITION_OPTIONS: { label: string; value: Position | 'unknown' }[] = [
+  { label: 'Gardien', value: 'GK' },
+  { label: 'Défenseur', value: 'DEF' },
+  { label: 'Milieu', value: 'MID' },
+  { label: 'Attaquant', value: 'FWD' },
+  { label: 'Je ne sais pas', value: 'unknown' },
+];
 
 interface AddGuestPlayerModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (name: string) => Promise<void>;
+  onSubmit: (name: string, position: Position | null) => Promise<void>;
   presentCount: number;
   maxPlayers: number;
 }
@@ -30,13 +40,19 @@ export function AddGuestPlayerModal({
   maxPlayers,
 }: AddGuestPlayerModalProps) {
   const [name, setName] = useState('');
+  const [position, setPosition] = useState<Position | 'unknown'>('unknown');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const resetForm = () => {
+    setName('');
+    setPosition('unknown');
+    setError(null);
+  };
+
   const handleClose = () => {
     if (loading) return;
-    setName('');
-    setError(null);
+    resetForm();
     onClose();
   };
 
@@ -50,8 +66,9 @@ export function AddGuestPlayerModal({
     setLoading(true);
     setError(null);
     try {
-      await onSubmit(trimmed);
-      setName('');
+      const resolvedPosition = position === 'unknown' ? null : position;
+      await onSubmit(trimmed, resolvedPosition);
+      resetForm();
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Impossible d\'ajouter ce joueur');
@@ -76,8 +93,8 @@ export function AddGuestPlayerModal({
           </View>
 
           <Text style={styles.subtitle}>
-            Pour quelqu'un qui n'a pas Kojiro. Il comptera dans l'effectif et la composition,
-            sans notif ni stats persistantes.
+            Pour quelqu'un qui n'a pas Kojiro. Indique son poste si tu le connais — l'IA
+            s'en servira pour équilibrer les équipes.
           </Text>
           <Text style={styles.quota}>
             Places : {presentCount}/{maxPlayers}
@@ -93,6 +110,13 @@ export function AddGuestPlayerModal({
             }}
             icon="person-outline"
             autoFocus
+          />
+
+          <Text style={styles.fieldLabel}>Poste (optionnel)</Text>
+          <ChipGroup
+            options={POSITION_OPTIONS}
+            selected={position}
+            onSelect={(v) => setPosition(v as Position | 'unknown')}
           />
 
           {error && <Text style={styles.error}>{error}</Text>}
@@ -147,6 +171,12 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.primary,
     fontWeight: '600',
+  },
+  fieldLabel: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+    marginBottom: -Spacing.xs,
   },
   error: {
     ...Typography.caption,

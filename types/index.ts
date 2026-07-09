@@ -69,6 +69,8 @@ export interface Match {
   organizerId: string;
   maxPlayers: number;
   status: MatchStatus;
+  /** Organisateur a clos le recrutement (inscriptions / invitations) */
+  recruitmentClosed?: boolean;
   attendees: MatchAttendee[];
   teams?: Team[];
   chatId: string;
@@ -87,6 +89,7 @@ export interface MatchAttendee {
   id?: string;
   userId?: string;
   guestName?: string;
+  guestPosition?: Position;
   status: AttendanceStatus;
   teamId?: string;
   joinedAt?: string;
