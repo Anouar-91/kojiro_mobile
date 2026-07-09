@@ -35,6 +35,7 @@ import {
   CompositionRole,
   getCompositionLockMessage,
   getCompositionRole,
+  getRegisteredPresentUserIds,
 } from '@/utils/compositionPermissions';
 import { getAttendeeParticipantId, resolveParticipantUser, uniqueParticipantIds } from '@/utils/guestAttendees';
 import { balanceTeams } from '@/utils/teamBalancer';
@@ -235,6 +236,19 @@ export default function TeamsScreen() {
   }, [match?.id, getProfile, initFromPlayers]);
 
   useEffect(() => {
+    if (!match?.id) return;
+    let active = true;
+    fetchMatchComposition(match.id)
+      .then((composition) => {
+        if (active) setCompositionMeta(composition);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [match?.id, presentIdsKey]);
+
+  useEffect(() => {
     if (loading || !match || !presentIdsKey) return;
 
     const presentIds = uniqueParticipantIds(presentIdsKey ? presentIdsKey.split(',') : []);
@@ -251,10 +265,16 @@ export default function TeamsScreen() {
     setSlotsB((prev) => removeAbsentFromSlots(prev, presentSet));
   }, [presentIdsKey, loading, match]);
 
+  const registeredPresentIds = useMemo(
+    () => (match ? getRegisteredPresentUserIds(match.attendees) : new Set<string>()),
+    [match?.attendees]
+  );
+
   const role: CompositionRole = getCompositionRole(
     user?.id,
     match?.organizerId ?? '',
-    compositionMeta
+    compositionMeta,
+    registeredPresentIds
   );
   const captainSide: TeamSide | null = role === 'captain_a' ? 'A' : role === 'captain_b' ? 'B' : null;
   const isOrganizer = role === 'organizer';
@@ -375,21 +395,28 @@ export default function TeamsScreen() {
     setter(autoToSlotAssignments(autoFillLineup(ids, slots, getPosition)));
   };
 
-  const handleSave = async (publish: boolean, editSide: TeamSide | null = null) => {
+  const handleSave = async (
+    publish: boolean,
+    editSide: TeamSide | null = null,
+    options?: { requireFormations?: boolean; stayOnScreen?: boolean }
+  ) => {
     const side = editSide ?? captainSide;
+    const requireFormations = options?.requireFormations ?? Boolean(side);
 
-    if (side) {
-      const layout = side === 'A' ? formationLayoutA : formationLayoutB;
-      if (!isValidFormation(layout, match.format)) {
-        Alert.alert('Formation invalide', 'Vérifie que DEF + MIL + ATT = joueurs de terrain.');
+    if (requireFormations) {
+      if (side) {
+        const layout = side === 'A' ? formationLayoutA : formationLayoutB;
+        if (!isValidFormation(layout, match.format)) {
+          Alert.alert('Formation invalide', 'Vérifie que DEF + MIL + ATT = joueurs de terrain.');
+          return;
+        }
+      } else if (
+        !isValidFormation(formationLayoutA, match.format) ||
+        !isValidFormation(formationLayoutB, match.format)
+      ) {
+        Alert.alert('Formation invalide', 'Vérifie que DEF + MIL + ATT = joueurs de terrain pour chaque équipe.');
         return;
       }
-    } else if (
-      !isValidFormation(formationLayoutA, match.format) ||
-      !isValidFormation(formationLayoutB, match.format)
-    ) {
-      Alert.alert('Formation invalide', 'Vérifie que DEF + MIL + ATT = joueurs de terrain pour chaque équipe.');
-      return;
     }
 
     setSaving(true);
@@ -418,6 +445,9 @@ export default function TeamsScreen() {
         editSide: side,
       });
 
+      const updated = await fetchMatchComposition(match.id);
+      setCompositionMeta(updated);
+
       if (publish) {
         const allIds = [...rosterA, ...rosterB];
         await Promise.all(
@@ -436,17 +466,38 @@ export default function TeamsScreen() {
         Alert.alert('Composition publiée', 'Les joueurs peuvent consulter la formation.', [
           { text: 'OK', onPress: () => router.back() },
         ]);
+      } else if (options?.stayOnScreen) {
+        await fetchMatches(user?.id);
       } else {
         await fetchMatches(user?.id);
-        Alert.alert('Équipe enregistrée', `Formation équipe ${side} mise à jour.`, [
-          { text: 'OK', onPress: () => router.back() },
+        const message = side
+          ? `Formation équipe ${side} mise à jour.`
+          : 'Les effectifs ont été enregistrés.';
+        Alert.alert(side ? 'Équipe enregistrée' : 'Effectifs enregistrés', message, [
+          { text: 'OK', onPress: () => (side ? router.back() : undefined) },
         ]);
       }
     } catch (e) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Sauvegarde impossible');
+      throw e;
     } finally {
       setSaving(false);
     }
+  };
+
+  const persistRosters = async () => {
+    await handleSave(false, null, { requireFormations: false, stayOnScreen: true });
+  };
+
+  const goToStep = async (next: Step) => {
+    if (step === 'teams' && next !== 'teams' && isOrganizer) {
+      try {
+        await persistRosters();
+      } catch {
+        return;
+      }
+    }
+    setStep(next);
   };
 
   const steps: { key: Step; label: string }[] = isOrganizer
@@ -482,7 +533,7 @@ export default function TeamsScreen() {
 
       <View style={styles.stepper}>
         {steps.map((s, i) => (
-          <Pressable key={s.key} style={styles.stepItem} onPress={() => setStep(s.key)}>
+          <Pressable key={s.key} style={styles.stepItem} onPress={() => goToStep(s.key)}>
             <View style={[styles.stepDot, step === s.key && styles.stepDotActive]}>
               <Text style={[styles.stepNum, step === s.key && styles.stepNumActive]}>{i + 1}</Text>
             </View>
@@ -498,7 +549,7 @@ export default function TeamsScreen() {
             <View style={styles.aiInfo}>
               <Text style={styles.aiTitle}>Étape 1 — Répartir les équipes</Text>
               <Text style={styles.aiDesc}>
-                Déplace les joueurs entre A et B. Tu choisiras la formation (2-3-1, 3-2-1…) à l'étape suivante.
+                Déplace les joueurs entre A et B. Les effectifs sont enregistrés automatiquement à l'étape suivante.
               </Text>
             </View>
           </View>
@@ -527,7 +578,29 @@ export default function TeamsScreen() {
           )}
 
           <Button title="Rééquilibrer avec l'IA" onPress={handleRebalance} variant="outline" icon="shuffle-outline" fullWidth />
-          <Button title="Formation équipe A" onPress={() => setStep('formation-a')} fullWidth disabled={teamAIds.length === 0} />
+          <Button
+            title="Enregistrer les effectifs"
+            onPress={() => handleSave(false, null, { requireFormations: false })}
+            loading={saving}
+            variant="outline"
+            icon="save-outline"
+            fullWidth
+          />
+          <Button
+            title="Publier les effectifs"
+            onPress={() => handleSave(true, null, { requireFormations: false })}
+            loading={saving}
+            variant="secondary"
+            icon="checkmark-circle-outline"
+            fullWidth
+          />
+          <Button
+            title="Formation équipe A"
+            onPress={() => goToStep('formation-a')}
+            fullWidth
+            disabled={teamAIds.length === 0}
+            loading={saving}
+          />
         </>
       )}
 
@@ -555,8 +628,8 @@ export default function TeamsScreen() {
           <View style={styles.navRow}>
             {isOrganizer ? (
               <>
-                <Button title="Retour" onPress={() => setStep('teams')} variant="ghost" />
-                <Button title="Équipe B" onPress={() => setStep('formation-b')} />
+                <Button title="Retour" onPress={() => goToStep('teams')} variant="ghost" />
+                <Button title="Équipe B" onPress={() => goToStep('formation-b')} />
               </>
             ) : (
               <Button
@@ -604,8 +677,8 @@ export default function TeamsScreen() {
           <View style={styles.navRow}>
             {isOrganizer ? (
               <>
-                <Button title="Équipe A" onPress={() => setStep('formation-a')} variant="ghost" />
-                <Button title="Récapitulatif" onPress={() => setStep('review')} />
+                <Button title="Équipe A" onPress={() => goToStep('formation-a')} variant="ghost" />
+                <Button title="Récapitulatif" onPress={() => goToStep('review')} />
               </>
             ) : (
               <Button
@@ -653,7 +726,7 @@ export default function TeamsScreen() {
           />
           <Button
             title="Publier la composition"
-            onPress={() => handleSave(true)}
+            onPress={() => handleSave(true, null, { requireFormations: false })}
             loading={saving}
             fullWidth
             size="lg"

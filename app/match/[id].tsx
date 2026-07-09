@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 
 import { MatchOrganizerSteps } from '@/components/match/MatchOrganizerSteps';
@@ -16,7 +16,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useMatchChatUnread } from '@/hooks/useMatchChatUnread';
 import { closeMatchRecruitment, reopenMatchRecruitment } from '@/services/matches';
-import { assignMatchCaptains, fetchMatchComposition } from '@/services/composition';
+import { assignMatchCaptains, fetchMatchComposition, getTeamPlayerIds } from '@/services/composition';
 import { createNotification } from '@/services/notifications';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
@@ -41,13 +41,14 @@ import {
   isOnWaitlist,
   isRecruitmentClosed,
 } from '@/utils/matchAttendance';
-import { isGuestPlayerId, parseGuestPlayerId } from '@/utils/guestAttendees';
+import { isGuestPlayerId, parseGuestPlayerId, resolveParticipantUser } from '@/utils/guestAttendees';
 import { isRegisteredPresent } from '@/utils/matchStatsRoster';
 import {
   canEditComposition,
   getComposeButtonLabel,
   hasCompositionLineups,
   getCompositionRole,
+  getRegisteredPresentUserIds,
 } from '@/utils/compositionPermissions';
 import { MatchComposition } from '@/types/lineup';
 
@@ -80,6 +81,29 @@ export default function MatchDetailScreen() {
   const [guestModalVisible, setGuestModalVisible] = useState(false);
   const { unreadCount: chatUnreadCount } = useMatchChatUnread(match?.id, user?.id);
 
+  const presentAttendeeKey = useMemo(
+    () =>
+      match?.attendees
+        .map((a) => `${a.userId ?? a.id}:${a.status}`)
+        .sort()
+        .join(',') ?? '',
+    [match?.attendees]
+  );
+
+  const teamAUsers = useMemo(() => {
+    if (!composition || !match) return [];
+    return getTeamPlayerIds(composition, 'A')
+      .map((id) => resolveParticipantUser(id, match, getProfile))
+      .filter((u): u is User => Boolean(u) && !u.isGuest);
+  }, [composition, match, getProfile]);
+
+  const teamBUsers = useMemo(() => {
+    if (!composition || !match) return [];
+    return getTeamPlayerIds(composition, 'B')
+      .map((id) => resolveParticipantUser(id, match, getProfile))
+      .filter((u): u is User => Boolean(u) && !u.isGuest);
+  }, [composition, match, getProfile]);
+
   useEffect(() => {
     if (!match) return;
     fetchMatchComposition(match.id)
@@ -93,7 +117,24 @@ export default function MatchDetailScreen() {
         setComposition(null);
         setHasComposition(false);
       });
-  }, [match?.id, match?.status]);
+  }, [match?.id, match?.status, presentAttendeeKey]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!match) return;
+      fetchMatchComposition(match.id)
+        .then((c) => {
+          setComposition(c);
+          setHasComposition(Boolean(c?.validatedAt && (c.lineups.length ?? 0) > 0));
+          setCaptainAId(c?.captainAId ?? null);
+          setCaptainBId(c?.captainBId ?? null);
+        })
+        .catch(() => {
+          setComposition(null);
+          setHasComposition(false);
+        });
+    }, [match?.id])
+  );
 
   if (!match) {
     return (
@@ -119,7 +160,13 @@ export default function MatchDetailScreen() {
   };
 
   const isOrganizer = user?.id === match.organizerId;
-  const compositionRole = getCompositionRole(user?.id, match.organizerId, composition);
+  const registeredPresentIds = getRegisteredPresentUserIds(match.attendees);
+  const compositionRole = getCompositionRole(
+    user?.id,
+    match.organizerId,
+    composition,
+    registeredPresentIds
+  );
   const canCompose = canEditComposition(compositionRole, match.status, composition);
   const composeButtonLabel = getComposeButtonLabel(compositionRole, canCompose);
   const hasLineups = hasCompositionLineups(composition);
@@ -188,6 +235,10 @@ export default function MatchDetailScreen() {
                 await removeAttendeeByOrganizer(match.id, player.id);
               }
               await fetchMatches(user?.id);
+              const updated = await fetchMatchComposition(match.id);
+              setComposition(updated);
+              setCaptainAId(updated?.captainAId ?? null);
+              setCaptainBId(updated?.captainBId ?? null);
             } catch (e) {
               Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de retirer ce joueur');
             }
@@ -244,6 +295,15 @@ export default function MatchDetailScreen() {
   };
 
   const handleSaveCaptains = async () => {
+    if (captainAId && !teamAUsers.some((u) => u.id === captainAId)) {
+      Alert.alert('Capitaine invalide', 'Le capitaine A doit être dans l\'équipe A.');
+      return;
+    }
+    if (captainBId && !teamBUsers.some((u) => u.id === captainBId)) {
+      Alert.alert('Capitaine invalide', 'Le capitaine B doit être dans l\'équipe B.');
+      return;
+    }
+
     setSavingCaptains(true);
     try {
       const prevA = composition?.captainAId ?? null;
@@ -472,11 +532,12 @@ export default function MatchDetailScreen() {
         />
       </View>
 
-      {isOrganizer && !isCompleted && match.status === 'upcoming' && presentUsers.length >= 2 && (
+      {isOrganizer && !isCompleted && match.status === 'upcoming' && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Capitaines</Text>
           <CaptainPicker
-            presentUsers={presentUsers}
+            teamAUsers={teamAUsers}
+            teamBUsers={teamBUsers}
             captainAId={captainAId}
             captainBId={captainBId}
             onCaptainAChange={setCaptainAId}

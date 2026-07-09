@@ -2,15 +2,36 @@ import { MatchComposition } from '@/types/lineup';
 
 export type CompositionRole = 'organizer' | 'captain_a' | 'captain_b' | 'viewer';
 
+export function getRegisteredPresentUserIds(
+  attendees: { userId?: string | null; status: string }[]
+): Set<string> {
+  return new Set(
+    attendees
+      .filter((a) => a.status === 'present' && a.userId)
+      .map((a) => a.userId!)
+  );
+}
+
+function isActiveCaptain(
+  userId: string,
+  captainId: string | null | undefined,
+  registeredPresentIds?: Set<string>
+): boolean {
+  if (!captainId || captainId !== userId) return false;
+  if (!registeredPresentIds) return true;
+  return registeredPresentIds.has(userId);
+}
+
 export function getCompositionRole(
   userId: string | undefined,
   organizerId: string,
-  composition: MatchComposition | null
+  composition: MatchComposition | null,
+  registeredPresentIds?: Set<string>
 ): CompositionRole {
   if (!userId) return 'viewer';
   if (userId === organizerId) return 'organizer';
-  if (composition?.captainAId === userId) return 'captain_a';
-  if (composition?.captainBId === userId) return 'captain_b';
+  if (isActiveCaptain(userId, composition?.captainAId, registeredPresentIds)) return 'captain_a';
+  if (isActiveCaptain(userId, composition?.captainBId, registeredPresentIds)) return 'captain_b';
   return 'viewer';
 }
 

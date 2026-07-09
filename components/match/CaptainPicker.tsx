@@ -8,7 +8,8 @@ import { User } from '@/types';
 import { uniqueUsersById } from '@/utils/guestAttendees';
 
 interface CaptainPickerProps {
-  presentUsers: User[];
+  teamAUsers: User[];
+  teamBUsers: User[];
   captainAId: string | null;
   captainBId: string | null;
   onCaptainAChange: (userId: string | null) => void;
@@ -20,7 +21,8 @@ interface CaptainPickerProps {
 const NONE = '__none__';
 
 export function CaptainPicker({
-  presentUsers,
+  teamAUsers,
+  teamBUsers,
   captainAId,
   captainBId,
   onCaptainAChange,
@@ -28,27 +30,30 @@ export function CaptainPicker({
   onSave,
   saving,
 }: CaptainPickerProps) {
-  const registeredUsers = uniqueUsersById(presentUsers.filter((u) => !u.isGuest));
+  const registeredTeamA = uniqueUsersById(teamAUsers.filter((u) => !u.isGuest));
+  const registeredTeamB = uniqueUsersById(teamBUsers.filter((u) => !u.isGuest));
+
   const optionsA = [
     { label: 'Aucun', value: NONE },
-    ...registeredUsers
-      .filter((u) => u.id !== captainBId)
-      .map((u) => ({ label: u.name, value: u.id })),
+    ...registeredTeamA.map((u) => ({ label: u.name, value: u.id })),
   ];
   const optionsB = [
     { label: 'Aucun', value: NONE },
-    ...registeredUsers
-      .filter((u) => u.id !== captainAId)
-      .map((u) => ({ label: u.name, value: u.id })),
+    ...registeredTeamB.map((u) => ({ label: u.name, value: u.id })),
   ];
 
-  const captainA = registeredUsers.find((u) => u.id === captainAId);
-  const captainB = registeredUsers.find((u) => u.id === captainBId);
+  const validCaptainAId =
+    captainAId && registeredTeamA.some((u) => u.id === captainAId) ? captainAId : null;
+  const validCaptainBId =
+    captainBId && registeredTeamB.some((u) => u.id === captainBId) ? captainBId : null;
 
-  if (registeredUsers.length < 2) {
+  const captainA = registeredTeamA.find((u) => u.id === validCaptainAId);
+  const captainB = registeredTeamB.find((u) => u.id === validCaptainBId);
+
+  if (registeredTeamA.length === 0 && registeredTeamB.length === 0) {
     return (
       <Text style={styles.hint}>
-        Il faut au moins 2 joueurs inscrits présents pour désigner des capitaines.
+        Compose d'abord les équipes pour désigner des capitaines.
       </Text>
     );
   }
@@ -56,31 +61,43 @@ export function CaptainPicker({
   return (
     <View style={styles.wrap}>
       <Text style={styles.desc}>
-        Les capitaines peuvent placer les joueurs de leur équipe, même après publication. Retire un capitaine pour bloquer les modifications.
+        Les capitaines doivent être dans leur équipe. Ils peuvent placer les joueurs de leur moitié de terrain, même après publication.
       </Text>
 
       <Text style={styles.label}>Capitaine équipe A</Text>
-      <ChipGroup
-        options={optionsA}
-        selected={captainAId ?? NONE}
-        onSelect={(v) => onCaptainAChange(v === NONE ? null : String(v))}
-      />
-      {captainA && (
-        <View style={styles.preview}>
-          <PlayerRow user={captainA} />
-        </View>
+      {registeredTeamA.length === 0 ? (
+        <Text style={styles.hint}>Aucun joueur inscrit dans l'équipe A.</Text>
+      ) : (
+        <>
+          <ChipGroup
+            options={optionsA}
+            selected={validCaptainAId ?? NONE}
+            onSelect={(v) => onCaptainAChange(v === NONE ? null : String(v))}
+          />
+          {captainA && (
+            <View style={styles.preview}>
+              <PlayerRow user={captainA} />
+            </View>
+          )}
+        </>
       )}
 
       <Text style={styles.label}>Capitaine équipe B</Text>
-      <ChipGroup
-        options={optionsB}
-        selected={captainBId ?? NONE}
-        onSelect={(v) => onCaptainBChange(v === NONE ? null : String(v))}
-      />
-      {captainB && (
-        <View style={styles.preview}>
-          <PlayerRow user={captainB} />
-        </View>
+      {registeredTeamB.length === 0 ? (
+        <Text style={styles.hint}>Aucun joueur inscrit dans l'équipe B.</Text>
+      ) : (
+        <>
+          <ChipGroup
+            options={optionsB}
+            selected={validCaptainBId ?? NONE}
+            onSelect={(v) => onCaptainBChange(v === NONE ? null : String(v))}
+          />
+          {captainB && (
+            <View style={styles.preview}>
+              <PlayerRow user={captainB} />
+            </View>
+          )}
+        </>
       )}
 
       <Button title="Enregistrer les capitaines" onPress={onSave} loading={saving} variant="outline" fullWidth />
