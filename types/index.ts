@@ -6,7 +6,7 @@ export type MatchFormat = number;
 
 export const MATCH_FORMAT_PRESETS = [5, 6, 7, 8, 9, 11] as const;
 export const SUBSTITUTE_PRESETS = [0, 1, 2, 3, 5] as const;
-export type MatchStatus = 'upcoming' | 'live' | 'completed' | 'cancelled';
+export type MatchStatus = 'upcoming' | 'live' | 'pending_stats' | 'completed' | 'cancelled';
 export type MatchVisibility = 'public' | 'friends_only';
 
 export interface User {
@@ -146,7 +146,7 @@ export interface LeaderboardEntry {
 
 export interface Notification {
   id: string;
-  type: 'match_invite' | 'match_reminder' | 'match_recap' | 'match_waitlist' | 'team_assigned' | 'chat_message' | 'social' | 'tournament' | 'friend_request';
+  type: 'match_invite' | 'match_reminder' | 'match_recap' | 'match_stats' | 'match_waitlist' | 'team_assigned' | 'chat_message' | 'social' | 'tournament' | 'friend_request';
   title: string;
   body: string;
   read: boolean;

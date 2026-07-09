@@ -42,6 +42,7 @@ import {
   isRecruitmentClosed,
 } from '@/utils/matchAttendance';
 import { isGuestPlayerId, parseGuestPlayerId } from '@/utils/guestAttendees';
+import { isRegisteredPresent } from '@/utils/matchStatsRoster';
 import {
   canEditComposition,
   getComposeButtonLabel,
@@ -123,6 +124,7 @@ export default function MatchDetailScreen() {
   const composeButtonLabel = getComposeButtonLabel(compositionRole, canCompose);
   const hasLineups = hasCompositionLineups(composition);
   const isCompleted = match.status === 'completed';
+  const isPendingStats = match.status === 'pending_stats';
   const recruitmentClosed = isRecruitmentClosed(match);
   const attendanceFullyLocked = isAttendanceFullyLocked(match);
   const attendanceOpen = canUseFullAttendanceUI(match);
@@ -285,6 +287,7 @@ export default function MatchDetailScreen() {
           <Text style={styles.format}>{getMatchFormatDescription(match.format, match.substitutesPerTeam)}</Text>
           {isFriendsOnly && <Badge label="Entre amis" variant="secondary" />}
           {isCompleted && <Badge label="Terminé" variant="success" />}
+          {isPendingStats && <Badge label="Stats en cours" variant="warning" />}
           {match.status === 'live' && <Badge label="En cours" variant="primary" />}
           {recruitmentClosed && <Badge label="Recrutement clos" variant="secondary" />}
           {matchIsFull && !isCompleted && <Badge label="Complet" variant="secondary" />}
@@ -510,13 +513,22 @@ export default function MatchDetailScreen() {
             variant="outline"
           />
         )}
-        {isOrganizer && !isCompleted && (
+        {isOrganizer && !isCompleted && !isPendingStats && (
           <Button
-            title="Terminer le match"
-            onPress={() => router.push({ pathname: '/match/complete', params: { id: match.id } })}
+            title="Ouvrir la saisie des stats"
+            onPress={() => router.push({ pathname: '/match/stats', params: { id: match.id } })}
             icon="flag-outline"
             fullWidth
             variant={recruitmentClosed || match.status === 'live' ? 'primary' : 'secondary'}
+          />
+        )}
+        {(isPendingStats && (isOrganizer || isRegisteredPresent(match, user?.id))) && (
+          <Button
+            title={isOrganizer ? 'Finaliser les stats' : 'Saisir mes stats'}
+            onPress={() => router.push({ pathname: '/match/stats', params: { id: match.id } })}
+            icon="stats-chart-outline"
+            fullWidth
+            variant="primary"
           />
         )}
         {isCompleted && (

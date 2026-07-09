@@ -63,7 +63,7 @@ export default function MatchesScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const activeMatches = useMemo(
-    () => matches.filter((m) => m.status === 'upcoming' || m.status === 'live'),
+    () => matches.filter((m) => m.status === 'upcoming' || m.status === 'live' || m.status === 'pending_stats'),
     [matches]
   );
 

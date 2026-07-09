@@ -69,6 +69,10 @@ supabase/migrations/024_match_recruitment_closed.sql
 supabase/migrations/025_guest_position.sql
 supabase/migrations/027_match_captains.sql
 supabase/migrations/028_captain_edit_after_publish.sql
+supabase/migrations/029_match_recap_notifications.sql
+supabase/migrations/030_match_recap_fair_play.sql
+supabase/migrations/031_match_collaborative_stats.sql
+supabase/migrations/032_fix_dev_fill_on_conflict.sql
 ```
 
 ### Auth (développement)

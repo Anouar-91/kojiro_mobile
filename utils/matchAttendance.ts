@@ -51,7 +51,7 @@ export function isRecruitmentClosed(match: Pick<Match, 'status' | 'recruitmentCl
 }
 
 export function isAttendanceFullyLocked(match: Pick<Match, 'status'>): boolean {
-  return match.status === 'completed' || match.status === 'cancelled';
+  return match.status === 'completed' || match.status === 'cancelled' || match.status === 'pending_stats';
 }
 
 export function canUseFullAttendanceUI(match: MatchAttendanceRules): boolean {
@@ -142,6 +142,8 @@ export function getAttendanceLockMessage(
   switch (match.status) {
     case 'live':
       return 'Le match est en cours — tu peux encore te désister si besoin.';
+    case 'pending_stats':
+      return 'Saisie des stats en cours — les présences ne peuvent plus être modifiées.';
     case 'completed':
       return 'Match terminé — les présences ne peuvent plus être modifiées.';
     case 'cancelled':

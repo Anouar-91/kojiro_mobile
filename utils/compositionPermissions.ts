@@ -19,18 +19,18 @@ export function canEditComposition(
   matchStatus: string,
   _composition: MatchComposition | null
 ): boolean {
-  if (matchStatus === 'completed' || matchStatus === 'live') return false;
+  if (matchStatus === 'completed' || matchStatus === 'live' || matchStatus === 'pending_stats') return false;
   if (role === 'organizer') return true;
   if (role === 'captain_a' || role === 'captain_b') return true;
   return false;
 }
 
 export function canPublishComposition(role: CompositionRole, matchStatus: string): boolean {
-  return role === 'organizer' && matchStatus !== 'completed' && matchStatus !== 'live';
+  return role === 'organizer' && matchStatus !== 'completed' && matchStatus !== 'live' && matchStatus !== 'pending_stats';
 }
 
 export function canAssignCaptains(role: CompositionRole, matchStatus: string): boolean {
-  return role === 'organizer' && matchStatus !== 'completed';
+  return role === 'organizer' && matchStatus !== 'completed' && matchStatus !== 'pending_stats';
 }
 
 export function isCaptainRole(role: CompositionRole): boolean {
@@ -59,6 +59,9 @@ export function getComposeButtonLabel(role: CompositionRole, canEdit: boolean): 
 export function getCompositionLockMessage(role: CompositionRole, matchStatus: string): string {
   if (matchStatus === 'live') {
     return 'Le match est en cours — la composition est en lecture seule.';
+  }
+  if (matchStatus === 'pending_stats') {
+    return 'Saisie des stats en cours — la composition est en lecture seule.';
   }
   if (matchStatus === 'completed') {
     return 'Match terminé.';

@@ -35,7 +35,7 @@ export default function HomeScreen() {
   const myUpcomingMatches = useMemo(
     () =>
       matches
-        .filter((m) => m.status === 'upcoming' && isUserRegisteredForMatch(m, user?.id))
+        .filter((m) => (m.status === 'upcoming' || m.status === 'pending_stats') && isUserRegisteredForMatch(m, user?.id))
         .slice(0, 3),
     [matches, user?.id]
   );

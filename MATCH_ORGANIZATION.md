@@ -108,21 +108,38 @@ Guide du parcours complet, de la création à la fin du match.
 
 ---
 
-## Étape 7 — Terminer le match
+## Étape 7 — Stats collaboratives
 
-**Qui :** organisateur
+**Statut intermédiaire :** `pending_stats`
 
-**Écran :** `Terminer le match`
+### 7a — Ouvrir la saisie (organisateur)
 
-**À saisir :**
-- Score final (équipe A vs B)
-- Par joueur (pré-rempli depuis la composition si publiée) :
-  - Équipe A ou B
-  - Buts, passes décisives
-  - Note /5
-  - MVP (un seul)
+**Écran :** `Stats du match` (`app/match/stats.tsx`)
 
-**Validation :** appelle la RPC `complete_match` côté Supabase.
+- Saisit le score final (équipe A vs B)
+- Appelle `open_match_stats` → notifie tous les présents
+- Roster pré-rempli depuis la composition publiée (ou équilibrage auto)
+
+### 7b — Auto-déclaration (chaque joueur présent)
+
+- Saisit ses buts et passes
+- Vote pour le MVP (équipe gagnante ; en cas de nul, tous les joueurs inscrits)
+- RPC : `submit_my_match_stats`
+
+### 7c — Validation capitaine (par équipe)
+
+- Voit les auto-déclarations de son équipe
+- Corrige buts/passes (y compris joueurs invités sans compte)
+- Valide son équipe + vote MVP
+- RPC : `captain_save_team_stats`
+
+### 7d — Finalisation (organisateur)
+
+- Tableau consolidé (proposition = stats capitaine, sinon auto-déclaration)
+- Peut corriger tout
+- **Contrainte :** Σ buts équipe A = score A, Σ buts équipe B = score B
+- MVP = agrégation des votes (ou choix manuel orga)
+- RPC : `finalize_match_stats` → `completed` + `match_results` + notif résumé
 
 ---
 
@@ -147,14 +164,17 @@ Guide du parcours complet, de la création à la fin du match.
 | Confirmer présence | ✅ | ✅ | ❌* |
 | Inviter | ✅ | ❌ | ❌ |
 | Composer / publier formation | ✅ | ❌ | ❌ |
-| Composer son équipe (capitaine) | — | ✅* | ❌ |
+| Composer son équipe (capitaine) | — | ✅† | ❌ |
 | Voir formation | ✅ | ✅ | selon visibilité |
-| Démarrer match | ✅ | ❌ | ❌ |
-| Terminer + stats | ✅ | ❌ | ❌ |
+| Ouvrir saisie stats | ✅ | ❌ | ❌ |
+| Saisir ses stats + vote MVP | ✅ | ✅* | ❌ |
+| Valider équipe (capitaine) | — | ✅** | ❌ |
+| Finaliser le match | ✅ | ❌ | ❌ |
 | Chat | ✅ | ✅ | ❌ |
 
-\*Match entre amis : ami de l'orga ou déjà invité.  
-\*Capitaine : désigné par l'organisateur, édite son côté jusqu'au coup d'envoi. Retirer le capitaine = bloquer ses modifications.
+\*Match entre amis : ami de l'orga ou déjà invité. Joueur présent inscrit avec compte pour les stats.  
+†Capitaine désigné par l'organisateur.  
+\*\*Capitaine : valide son équipe pendant `pending_stats`.
 
 ---
 
@@ -166,9 +186,10 @@ Exécuter dans le SQL Editor :
 supabase/migrations/011_match_composition.sql
 supabase/migrations/027_match_captains.sql
 supabase/migrations/028_captain_edit_after_publish.sql
+supabase/migrations/031_match_collaborative_stats.sql
 ```
 
-Crée les tables `match_compositions`, `match_lineups` et les fonctions `save_match_composition`, `assign_match_captains`, `start_match`.
+Crée les tables `match_stat_entries`, `match_mvp_votes`, `match_team_stat_validations` et les RPC `open_match_stats`, `submit_my_match_stats`, `captain_save_team_stats`, `get_match_stats_state`, `finalize_match_stats`.
 
 ---
 
@@ -181,7 +202,8 @@ Crée les tables `match_compositions`, `match_lineups` et les fonctions `save_ma
 | `app/match/teams.tsx` | Wizard composition (4 étapes) |
 | `app/match/lineup.tsx` | Vue formation lecture seule |
 | `components/match/PitchFormation.tsx` | Terrain + placement |
-| `app/match/complete.tsx` | Fin de match + stats |
+| `app/match/stats.tsx` | Stats collaboratives (joueur / capitaine / orga) |
+| `app/match/complete.tsx` | Redirige vers `stats` |
 | `services/composition.ts` | API composition |
 | `components/match/CaptainPicker.tsx` | Désignation capitaines |
 | `utils/compositionPermissions.ts` | Rôles compo |
