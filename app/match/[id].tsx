@@ -2,7 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MatchOrganizerSteps } from '@/components/match/MatchOrganizerSteps';
 import { AddGuestPlayerModal } from '@/components/match/AddGuestPlayerModal';
@@ -80,6 +81,7 @@ export default function MatchDetailScreen() {
   const [savingCaptains, setSavingCaptains] = useState(false);
   const [guestModalVisible, setGuestModalVisible] = useState(false);
   const { unreadCount: chatUnreadCount } = useMatchChatUnread(match?.id, user?.id);
+  const insets = useSafeAreaInsets();
 
   const presentAttendeeKey = useMemo(
     () =>
@@ -337,7 +339,11 @@ export default function MatchDetailScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.screen}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: Spacing.xxxl + 72 + insets.bottom }]}
+    >
       {match.imageUrl && (
         <Image source={{ uri: match.imageUrl }} style={styles.hero} contentFit="cover" />
       )}
@@ -619,22 +625,6 @@ export default function MatchDetailScreen() {
                 variant={canCompose ? 'outline' : 'primary'}
               />
             )}
-            <View style={styles.chatBtnWrap}>
-              <Button
-                title="Chat du match"
-                onPress={() => router.push({ pathname: '/match/chat', params: { id: match.id } })}
-                variant="secondary"
-                icon="chatbubbles-outline"
-                fullWidth
-              />
-              {chatUnreadCount > 0 && (
-                <View style={styles.chatBadge}>
-                  <Text style={styles.chatBadgeText}>
-                    {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
-                  </Text>
-                </View>
-              )}
-            </View>
           </>
         )}
         {!isCompleted && canAddPlayers && (
@@ -647,7 +637,7 @@ export default function MatchDetailScreen() {
               fullWidth
             />
             <Button
-              title="Ajouter sans appli"
+              title="Ajouter un joueur sans compte"
               onPress={() => setGuestModalVisible(true)}
               variant="outline"
               icon="person-outline"
@@ -673,12 +663,32 @@ export default function MatchDetailScreen() {
         )}
       </View>
     </ScrollView>
+
+    {!isCompleted && (
+      <Pressable
+        style={[styles.chatFab, { bottom: 24 + insets.bottom }]}
+        onPress={() => router.push({ pathname: '/match/chat', params: { id: match.id } })}
+        accessibilityRole="button"
+        accessibilityLabel="Chat du match"
+      >
+        <Ionicons name="chatbubbles" size={24} color={Colors.background} />
+        {chatUnreadCount > 0 && (
+          <View style={styles.chatBadge}>
+            <Text style={styles.chatBadgeText}>
+              {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
+            </Text>
+          </View>
+        )}
+      </Pressable>
+    )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: Colors.background },
   container: { flex: 1, backgroundColor: Colors.background },
-  content: { paddingBottom: Spacing.xxxl },
+  content: {},
   notFound: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
   notFoundText: { ...Typography.body, color: Colors.textMuted },
   hero: { width: '100%', height: 180 },
@@ -715,11 +725,25 @@ const styles = StyleSheet.create({
   waitlistText: { ...Typography.caption, color: Colors.primary, fontWeight: '600', flex: 1 },
   waitlistBtn: { marginBottom: Spacing.sm },
   actions: { paddingHorizontal: Spacing.xxl, gap: Spacing.md },
-  chatBtnWrap: { position: 'relative', width: '100%' },
+  chatFab: {
+    position: 'absolute',
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.info,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.info,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
   chatBadge: {
     position: 'absolute',
-    top: -6,
-    right: 8,
+    top: -4,
+    right: -4,
     minWidth: 22,
     height: 22,
     borderRadius: 11,

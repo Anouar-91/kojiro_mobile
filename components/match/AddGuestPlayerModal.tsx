@@ -86,7 +86,7 @@ export function AddGuestPlayerModal({
         <Pressable style={styles.backdrop} onPress={handleClose} />
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.title}>Ajouter sans appli</Text>
+            <Text style={styles.title}>Ajouter un joueur sans compte</Text>
             <Pressable onPress={handleClose} hitSlop={12} disabled={loading}>
               <Ionicons name="close" size={24} color={Colors.textMuted} />
             </Pressable>
