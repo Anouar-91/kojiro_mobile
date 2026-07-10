@@ -41,6 +41,17 @@ export function PitchFormation({
     });
   }, [players, slotAssignments]);
 
+  const hasPitchAssignments = Object.keys(slotAssignments).length > 0;
+  const showPitch = !readOnly || hasPitchAssignments;
+  const showBench = !readOnly || benchPlayers.length > 0;
+  const benchTitle = readOnly
+    ? hasPitchAssignments
+      ? `Remplaçants${benchPlayers.length > 0 ? ` (${benchPlayers.length})` : ''}`
+      : `Effectif (${benchPlayers.length})`
+    : `Banc ${benchPlayers.length > 0 ? `(${benchPlayers.length})` : ''}${
+        selectedPlayerId ? ' · Touche une position sur le terrain' : ' · Touche un joueur puis une case'
+      }`;
+
   const userById = useMemo(() => {
     const map: Record<string, User> = {};
     for (const player of players) {
@@ -63,6 +74,7 @@ export function PitchFormation({
 
   return (
     <View style={styles.wrap}>
+      {showPitch && (
       <View style={styles.pitch}>
         <PitchSvg />
         {slots.map((slot) => {
@@ -105,32 +117,50 @@ export function PitchFormation({
           );
         })}
       </View>
+      )}
 
-      {!readOnly && (
+      {showBench && (
         <View style={styles.bench}>
-          <Text style={styles.benchTitle}>
-            Banc {benchPlayers.length > 0 ? `(${benchPlayers.length})` : ''}
-            {selectedPlayerId ? ' · Touche une position sur le terrain' : ' · Touche un joueur puis une case'}
-          </Text>
+          <Text style={styles.benchTitle}>{benchTitle}</Text>
           <View style={styles.benchRow}>
-            {benchPlayers.length === 0 ? (
+            {!readOnly && benchPlayers.length === 0 ? (
               <Text style={styles.benchEmpty}>Tous les joueurs sont placés</Text>
             ) : (
-              benchPlayers.map((player) => (
-                <Pressable
-                  key={player.id}
-                  style={[
-                    styles.benchChip,
-                    selectedPlayerId === player.id && { borderColor: accentColor, backgroundColor: `${accentColor}22` },
-                  ]}
-                  onPress={() => onSelectPlayer?.(selectedPlayerId === player.id ? null : player.id)}
-                >
-                  <Avatar uri={player.avatar} size={32} name={player.name} />
-                  <Text style={styles.benchName} numberOfLines={1}>
-                    {player.name.split(' ')[0]}
-                  </Text>
-                </Pressable>
-              ))
+              benchPlayers.map((player) => {
+                const chipStyle = [
+                  styles.benchChip,
+                  readOnly && { borderColor: `${accentColor}40` },
+                  !readOnly &&
+                    selectedPlayerId === player.id && {
+                      borderColor: accentColor,
+                      backgroundColor: `${accentColor}22`,
+                    },
+                ];
+
+                if (readOnly) {
+                  return (
+                    <View key={player.id} style={chipStyle}>
+                      <Avatar uri={player.avatar} size={32} name={player.name} />
+                      <Text style={styles.benchName} numberOfLines={1}>
+                        {player.name.split(' ')[0]}
+                      </Text>
+                    </View>
+                  );
+                }
+
+                return (
+                  <Pressable
+                    key={player.id}
+                    style={chipStyle}
+                    onPress={() => onSelectPlayer?.(selectedPlayerId === player.id ? null : player.id)}
+                  >
+                    <Avatar uri={player.avatar} size={32} name={player.name} />
+                    <Text style={styles.benchName} numberOfLines={1}>
+                      {player.name.split(' ')[0]}
+                    </Text>
+                  </Pressable>
+                );
+              })
             )}
           </View>
         </View>

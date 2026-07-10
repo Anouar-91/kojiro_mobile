@@ -93,7 +93,11 @@ export default function LineupScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>{match.title}</Text>
 
-      <Text style={styles.teamTitle}>Équipe A — {composition.formationA}</Text>
+      <Text style={styles.teamTitle}>
+        {Object.keys(getSlotAssignments(composition, 'A')).length > 0
+          ? `Équipe A — ${composition.formationA}`
+          : 'Équipe A'}
+      </Text>
       <PitchFormationReadOnly
         slots={formationSlotsA}
         players={playersForSide('A')}
@@ -101,7 +105,11 @@ export default function LineupScreen() {
         accentColor={Colors.primary}
       />
 
-      <Text style={styles.teamTitle}>Équipe B — {composition.formationB}</Text>
+      <Text style={styles.teamTitle}>
+        {Object.keys(getSlotAssignments(composition, 'B')).length > 0
+          ? `Équipe B — ${composition.formationB}`
+          : 'Équipe B'}
+      </Text>
       <PitchFormationReadOnly
         slots={formationSlotsB}
         players={playersForSide('B')}

@@ -280,14 +280,22 @@ export default function MatchRecapScreen() {
       {composition && composition.lineups.length > 0 && match && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Composition</Text>
-          <Text style={styles.teamTitle}>Équipe A — {composition.formationA}</Text>
+          <Text style={styles.teamTitle}>
+            {Object.keys(getSlotAssignments(composition, 'A')).length > 0
+              ? `Équipe A — ${composition.formationA}`
+              : 'Équipe A'}
+          </Text>
           <PitchFormationReadOnly
             slots={formationSlotsA}
             players={playersForSide('A')}
             slotAssignments={getSlotAssignments(composition, 'A')}
             accentColor={Colors.primary}
           />
-          <Text style={styles.teamTitle}>Équipe B — {composition.formationB}</Text>
+          <Text style={styles.teamTitle}>
+            {Object.keys(getSlotAssignments(composition, 'B')).length > 0
+              ? `Équipe B — ${composition.formationB}`
+              : 'Équipe B'}
+          </Text>
           <PitchFormationReadOnly
             slots={formationSlotsB}
             players={playersForSide('B')}
