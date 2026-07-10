@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { Colors, Spacing, Typography } from '@/constants/theme';
@@ -11,9 +11,10 @@ interface ChatBubbleProps {
   isOwn: boolean;
   senderName?: string;
   senderAvatar?: string;
+  onSenderPress?: () => void;
 }
 
-export function ChatBubble({ message, isOwn, senderName, senderAvatar }: ChatBubbleProps) {
+export function ChatBubble({ message, isOwn, senderName, senderAvatar, onSenderPress }: ChatBubbleProps) {
   if (message.type === 'system') {
     return (
       <View style={styles.systemWrap}>
@@ -25,11 +26,15 @@ export function ChatBubble({ message, isOwn, senderName, senderAvatar }: ChatBub
   return (
     <View style={[styles.bubbleRow, isOwn && styles.bubbleRowOwn]}>
       {!isOwn && senderAvatar && (
-        <Avatar uri={senderAvatar} size={32} name={senderName} />
+        <Pressable onPress={onSenderPress} disabled={!onSenderPress} hitSlop={4}>
+          <Avatar uri={senderAvatar} size={32} name={senderName} />
+        </Pressable>
       )}
       <View style={[styles.bubble, isOwn ? styles.bubbleOwn : styles.bubbleOther]}>
         {!isOwn && senderName && (
-          <Text style={styles.senderName}>{senderName}</Text>
+          <Pressable onPress={onSenderPress} disabled={!onSenderPress}>
+            <Text style={styles.senderName}>{senderName}</Text>
+          </Pressable>
         )}
         <Text style={[styles.messageText, isOwn && styles.messageTextOwn]}>
           {message.content}

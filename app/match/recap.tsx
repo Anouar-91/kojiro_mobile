@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PitchFormationReadOnly } from '@/components/match/PitchFormation';
 import { Avatar } from '@/components/ui/Avatar';
@@ -23,6 +23,7 @@ import {
   parseFormationLabel,
 } from '@/utils/formations';
 import { buildGuestUser, isGuestPlayerId, parseGuestPlayerId, uniqueUsersById } from '@/utils/guestAttendees';
+import { openUserProfile } from '@/utils/profileNavigation';
 
 function formatScorers(players: MatchRecapPlayer[]): string {
   const scorers = players.filter((p) => p.goals > 0);
@@ -104,8 +105,16 @@ function PlayerStatChip({ icon, value }: { icon: ProfileStatIconKey; value: stri
   );
 }
 
-function PlayerStatRow({ player, isMe }: { player: MatchRecapPlayer; isMe: boolean }) {
-  return (
+function PlayerStatRow({
+  player,
+  isMe,
+  onPress,
+}: {
+  player: MatchRecapPlayer;
+  isMe: boolean;
+  onPress?: () => void;
+}) {
+  const row = (
     <View style={[styles.playerRow, isMe && styles.playerRowMe]}>
       <Avatar uri={player.avatarUrl ?? `https://i.pravatar.cc/150?u=${player.userId}`} size={36} />
       <View style={styles.playerInfo}>
@@ -127,6 +136,16 @@ function PlayerStatRow({ player, isMe }: { player: MatchRecapPlayer; isMe: boole
       </View>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.playerRowPressed}>
+        {row}
+      </Pressable>
+    );
+  }
+
+  return row;
 }
 
 function HighlightRow({ icon, text }: { icon: ProfileStatIconKey; text: string }) {
@@ -140,6 +159,7 @@ function HighlightRow({ icon, text }: { icon: ProfileStatIconKey; text: string }
 
 export default function MatchRecapScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const getProfile = useProfileStore((s) => s.getProfile);
   const [recap, setRecap] = useState<MatchRecap | null>(null);
@@ -279,9 +299,18 @@ export default function MatchRecapScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Stats joueurs</Text>
-        {recap.players.map((player) => (
-          <PlayerStatRow key={player.userId} player={player} isMe={player.userId === user?.id} />
-        ))}
+        {recap.players.map((player) => {
+          const isMe = player.userId === user?.id;
+          const canOpenProfile = !isMe && !isGuestPlayerId(player.userId);
+          return (
+            <PlayerStatRow
+              key={player.userId}
+              player={player}
+              isMe={isMe}
+              onPress={canOpenProfile ? () => openUserProfile(router, player.userId) : undefined}
+            />
+          );
+        })}
       </View>
     </ScrollView>
   );
@@ -392,6 +421,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   playerRowMe: { backgroundColor: Colors.surface, borderRadius: 8, paddingHorizontal: Spacing.sm },
+  playerRowPressed: { opacity: 0.85 },
   playerInfo: { flex: 1 },
   playerNameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
   playerName: { ...Typography.bodyBold, color: Colors.text },

@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -26,9 +26,11 @@ import { setSuppressChatBannerMatchId } from '@/services/push';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { ChatMessage, User } from '@/types';
+import { openUserProfile } from '@/utils/profileNavigation';
 
 export default function MatchChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const match = useMatchStore((s) => s.getMatch(id ?? ''));
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -173,12 +175,17 @@ export default function MatchChatScreen() {
         keyboardDismissMode="interactive"
         renderItem={({ item }) => {
           const sender = item.senderId === user?.id ? user : senders[item.senderId];
+          const isOwn = item.senderId === user?.id;
+          const canOpenProfile = !isOwn && item.senderId !== 'system';
           return (
             <ChatBubble
               message={item}
-              isOwn={item.senderId === user?.id}
+              isOwn={isOwn}
               senderName={sender?.name}
               senderAvatar={sender?.avatar}
+              onSenderPress={
+                canOpenProfile ? () => openUserProfile(router, item.senderId) : undefined
+              }
             />
           );
         }}

@@ -19,6 +19,7 @@ import { useProfileStore } from '@/store/profileStore';
 import { NewsItem, User } from '@/types';
 import { NEARBY_MATCH_RADIUS_KM, sortByProximity } from '@/utils/geo';
 import { isUserRegisteredForMatch } from '@/utils/matchAttendance';
+import { openUserProfile } from '@/utils/profileNavigation';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -144,7 +145,10 @@ export default function HomeScreen() {
         {activeFriends.length === 0 ? (
           <Text style={styles.emptyFriends}>Ajoute des amis depuis l'onglet Communauté</Text>
         ) : (
-          <ActiveFriendsRow friends={activeFriends} />
+          <ActiveFriendsRow
+            friends={activeFriends}
+            onFriendPress={(friend) => openUserProfile(router, friend.id)}
+          />
         )}
 
         <SectionHeader title="Actualités" action="Plus" onAction={() => {}} />

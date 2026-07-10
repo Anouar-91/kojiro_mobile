@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -19,8 +19,10 @@ import { useMatchStore } from '@/store/matchStore';
 import { useProfileStore } from '@/store/profileStore';
 import { User } from '@/types';
 import { canInvitePlayers } from '@/utils/matchAttendance';
+import { openUserProfile } from '@/utils/profileNavigation';
 
 export default function InvitePlayersScreen() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
   const match = useMatchStore((s) => s.getMatch(id ?? ''));
@@ -141,7 +143,8 @@ export default function InvitePlayersScreen() {
               key={player.id}
               user={player}
               distance={player.city}
-              onAdd={
+              onPress={() => openUserProfile(router, player.id)}
+              onInvite={
                 isAttendee && !isPending && !wasInvited
                   ? undefined
                   : invitingId === player.id

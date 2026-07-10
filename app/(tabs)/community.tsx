@@ -11,10 +11,12 @@ import { Colors, Spacing, Typography } from '@/constants/theme';
 import { fetchFriendsLeaderboard } from '@/services/leaderboard';
 import { searchProfiles } from '@/services/profiles';
 import { fetchSocialPosts, subscribeToSocialPosts } from '@/services/social';
+import { getFriendshipState } from '@/services/friends';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
 import { useProfileStore } from '@/store/profileStore';
 import { LeaderboardEntry, SocialPost, User } from '@/types';
+import { openUserProfile } from '@/utils/profileNavigation';
 
 type Tab = 'friends' | 'players' | 'rankings' | 'highlights';
 
@@ -26,14 +28,13 @@ export default function CommunityScreen() {
   const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
   const getProfile = useProfileStore((s) => s.getProfile);
   const friendIds = useFriendStore((s) => s.friendIds);
-  const getFriendState = useFriendStore((s) => s.getState);
+  const friendRequests = useFriendStore((s) => s.requests);
   const getIncomingRequests = useFriendStore((s) => s.getIncomingRequests);
   const sendRequest = useFriendStore((s) => s.sendRequest);
   const acceptRequest = useFriendStore((s) => s.acceptRequest);
   const declineRequest = useFriendStore((s) => s.declineRequest);
   const cancelRequest = useFriendStore((s) => s.cancelRequest);
   const removeFriend = useFriendStore((s) => s.removeFriend);
-  const getRequestBetween = useFriendStore((s) => s.getRequestBetween);
   const fetchFriends = useFriendStore((s) => s.fetchFriends);
 
   const [tab, setTab] = useState<Tab>('friends');
@@ -248,6 +249,7 @@ export default function CommunityScreen() {
                       key={req.id}
                       user={from}
                       friendState="pending_received"
+                      onPress={() => openUserProfile(router, from.id)}
                       onAccept={() => handleAccept(req.id, from.name)}
                       onDecline={() => handleDecline(req.id, from.name)}
                     />
@@ -269,6 +271,7 @@ export default function CommunityScreen() {
                   key={player.id}
                   user={player}
                   friendState="friends"
+                  onPress={() => openUserProfile(router, player.id)}
                   onRemove={() => handleRemoveFriend(player)}
                 />
               ))
@@ -289,14 +292,21 @@ export default function CommunityScreen() {
               <Text style={styles.empty}>Aucun joueur trouvé pour « {search} »</Text>
             ) : (
               searchResults.map((player) => {
-                const state = user ? getFriendState(user.id, player.id) : 'none';
-                const request = user ? getRequestBetween(user.id, player.id) : undefined;
+                const state = user ? getFriendshipState(user.id, player.id, friendRequests) : 'none';
+                const request = user
+                  ? friendRequests.find(
+                      (r) =>
+                        (r.fromUserId === user.id && r.toUserId === player.id) ||
+                        (r.fromUserId === player.id && r.toUserId === user.id)
+                    )
+                  : undefined;
                 return (
                 <PlayerListItem
                   key={player.id}
                   user={player}
                   distance={player.city}
                   friendState={state}
+                  onPress={() => openUserProfile(router, player.id)}
                   onAdd={() => handleAddFriend(player)}
                   onCancel={
                     state === 'pending_sent' && request
@@ -325,7 +335,13 @@ export default function CommunityScreen() {
                   const profile = getProfile(entry.userId);
                   if (!profile) return null;
                   return (
-                    <PlayerListItem key={entry.userId} user={profile} rank={entry.rank} score={entry.score} />
+                    <PlayerListItem
+                      key={entry.userId}
+                      user={profile}
+                      rank={entry.rank}
+                      score={entry.score}
+                      onPress={() => openUserProfile(router, profile.id)}
+                    />
                   );
                 })}
               </>
@@ -344,7 +360,14 @@ export default function CommunityScreen() {
               socialPosts.map((post) => {
                 const author = getProfile(post.authorId);
                 if (!author) return null;
-                return <HighlightCard key={post.id} post={post} author={author} />;
+                return (
+                  <HighlightCard
+                    key={post.id}
+                    post={post}
+                    author={author}
+                    onAuthorPress={() => openUserProfile(router, author.id)}
+                  />
+                );
               })
             )}
           </>

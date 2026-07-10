@@ -229,11 +229,51 @@ export function ProfileSeasonStatsGrid({ stats }: { stats: ProfileSeasonStat[] }
   );
 }
 
-interface BadgeGridProps {
-  badges: User['badges'];
+export function buildProfileSeasonStats(user: User): ProfileSeasonStat[] {
+  return [
+    { key: 'match', label: 'Matchs', value: user.stats.matchesPlayed },
+    { key: 'goal', label: 'Buts', value: user.stats.goals },
+    { key: 'assist', label: 'Passes', value: user.stats.assists },
+    { key: 'mvp', label: 'MVP', value: user.stats.mvpCount },
+    {
+      key: 'fairPlay',
+      label: 'Fair-play',
+      value: `${Number(user.stats.averageFairPlay).toFixed(1)}/5`,
+      accent: true,
+    },
+    {
+      key: 'defense',
+      label: 'Défense',
+      value: `${Number(user.stats.averageDefensiveRating).toFixed(1)}/5`,
+      accent: true,
+    },
+  ];
 }
 
-export function BadgeGrid({ badges }: BadgeGridProps) {
+interface BadgeGridProps {
+  badges: User['badges'];
+  showAll?: boolean;
+}
+
+export function BadgeGrid({ badges, showAll = false }: BadgeGridProps) {
+  if (showAll) {
+    if (badges.length === 0) {
+      return <Text style={styles.badgeEmptyText}>Aucun badge débloqué pour le moment.</Text>;
+    }
+    return (
+      <View style={styles.badgeGridAll}>
+        {badges.map((badge) => (
+          <View key={badge.id} style={styles.badgeShield}>
+            <Text style={styles.badgeIcon}>{badge.icon}</Text>
+            <Text style={styles.badgeName} numberOfLines={2}>
+              {badge.name}
+            </Text>
+          </View>
+        ))}
+      </View>
+    );
+  }
+
   const slots = Array.from({ length: BADGE_SLOTS }, (_, i) => badges[i] ?? null);
 
   return (
@@ -247,7 +287,7 @@ export function BadgeGrid({ badges }: BadgeGridProps) {
         return (
           <View
             key={badge?.id ?? `slot-${i}`}
-            style={[styles.badgeShield, !earned && styles.badgeShieldLocked]}
+            style={[styles.badgeShieldSlot, !earned && styles.badgeShieldLocked]}
           >
             {earned ? (
               <Text style={styles.badgeIcon}>{badge.icon}</Text>
@@ -475,7 +515,18 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     paddingVertical: Spacing.xs,
   },
-  badgeShield: {
+  badgeGridAll: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  badgeEmptyText: {
+    ...Typography.body,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: Spacing.md,
+  },
+  badgeShieldSlot: {
     width: 56,
     height: 64,
     alignItems: 'center',
@@ -485,11 +536,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.primary,
   },
+  badgeShield: {
+    width: 72,
+    minHeight: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    padding: Spacing.sm,
+  },
   badgeShieldLocked: {
     borderColor: Colors.border,
     opacity: 0.5,
   },
   badgeIcon: {
     fontSize: 28,
+  },
+  badgeName: {
+    ...Typography.small,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 4,
   },
 });

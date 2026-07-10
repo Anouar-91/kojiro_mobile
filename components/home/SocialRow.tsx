@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
@@ -9,19 +9,25 @@ import { getPositionLabel } from '@/utils/formatters';
 
 interface ActiveFriendsRowProps {
   friends: User[];
+  onFriendPress?: (friend: User) => void;
 }
 
-export function ActiveFriendsRow({ friends }: ActiveFriendsRowProps) {
+export function ActiveFriendsRow({ friends, onFriendPress }: ActiveFriendsRowProps) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
       {friends.map((friend) => (
-        <View key={friend.id} style={styles.friend}>
+        <Pressable
+          key={friend.id}
+          style={styles.friend}
+          onPress={onFriendPress ? () => onFriendPress(friend) : undefined}
+          disabled={!onFriendPress}
+        >
           <View style={styles.avatarWrap}>
             <Avatar uri={friend.avatar} size={56} name={friend.name} />
           </View>
           <Text style={styles.name} numberOfLines={1}>{friend.name.split(' ')[0]}</Text>
           <Text style={styles.position}>{getPositionLabel(friend.position)}</Text>
-        </View>
+        </Pressable>
       ))}
     </ScrollView>
   );

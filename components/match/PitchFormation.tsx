@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 
 import { Avatar } from '@/components/ui/Avatar';
@@ -68,23 +68,38 @@ export function PitchFormation({
         {slots.map((slot) => {
           const userId = slotAssignments[slot.id];
           const user = userId ? userById[userId] : null;
-          const slotStyle: ViewStyle = {
-            left: `${slot.x * 100}%`,
-            top: `${slot.y * 100}%`,
-            borderColor: user ? accentColor : Colors.border,
-          };
 
           return (
             <Pressable
               key={slot.id}
-              style={[styles.slot, slotStyle]}
+              style={[
+                styles.slotWrap,
+                {
+                  left: `${slot.x * 100}%`,
+                  top: `${slot.y * 100}%`,
+                },
+              ]}
               onPress={() => handleSlotPress(slot.id)}
               disabled={readOnly && !user}
             >
-              {user ? (
-                <Avatar uri={user.avatar} size={36} name={user.name} />
-              ) : (
-                <Text style={styles.slotLabel}>{slot.label}</Text>
+              <View
+                style={[
+                  styles.slot,
+                  {
+                    borderColor: user ? accentColor : Colors.border,
+                  },
+                ]}
+              >
+                {user ? (
+                  <Avatar uri={user.avatar} size={36} name={user.name} />
+                ) : (
+                  <Text style={styles.slotLabel}>{slot.label}</Text>
+                )}
+              </View>
+              {user && (
+                <Text style={styles.slotName} numberOfLines={1} ellipsizeMode="tail">
+                  {user.name}
+                </Text>
               )}
             </Pressable>
           );
@@ -148,18 +163,34 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  slot: {
+  slotWrap: {
     position: 'absolute',
+    width: 56,
+    marginLeft: -28,
+    marginTop: -22,
+    alignItems: 'center',
+  },
+  slot: {
     width: 44,
     height: 44,
-    marginLeft: -22,
-    marginTop: -22,
     borderRadius: 22,
     borderWidth: 2,
     borderStyle: 'dashed',
     backgroundColor: 'rgba(10,10,11,0.75)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  slotName: {
+    ...Typography.small,
+    color: Colors.text,
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 2,
+    maxWidth: 56,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   slotLabel: {
     ...Typography.small,

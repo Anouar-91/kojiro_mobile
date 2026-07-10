@@ -8,6 +8,7 @@ import { Colors, Spacing, Typography } from '@/constants/theme';
 import { fetchSocialPosts, likePost, subscribeToSocialPosts } from '@/services/social';
 import { useProfileStore } from '@/store/profileStore';
 import { SocialPost } from '@/types';
+import { openUserProfile } from '@/utils/profileNavigation';
 
 export default function SocialFeedScreen() {
   const router = useRouter();
@@ -84,6 +85,7 @@ export default function SocialFeedScreen() {
             post={post}
             author={author!}
             onPress={() => handleLike(post.id)}
+            onAuthorPress={() => openUserProfile(router, author!.id)}
           />
         ))
       )}

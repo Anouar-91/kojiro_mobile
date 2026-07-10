@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   BadgeGrid,
+  buildProfileSeasonStats,
   LevelProgress,
   ProfileGlobalRating,
   ProfileHeader,
@@ -53,26 +54,7 @@ export default function ProfileScreen() {
 
       <ProfileSectionTitle title="Stats de la saison" />
       <ProfileGlobalRating user={user} />
-      <ProfileSeasonStatsGrid
-        stats={[
-          { key: 'match', label: 'Matchs', value: user.stats.matchesPlayed },
-          { key: 'goal', label: 'Buts', value: user.stats.goals },
-          { key: 'assist', label: 'Passes', value: user.stats.assists },
-          { key: 'mvp', label: 'MVP', value: user.stats.mvpCount },
-          {
-            key: 'fairPlay',
-            label: 'Fair-play',
-            value: `${Number(user.stats.averageFairPlay).toFixed(1)}/5`,
-            accent: true,
-          },
-          {
-            key: 'defense',
-            label: 'Défense',
-            value: `${Number(user.stats.averageDefensiveRating).toFixed(1)}/5`,
-            accent: true,
-          },
-        ]}
-      />
+      <ProfileSeasonStatsGrid stats={buildProfileSeasonStats(user)} />
 
       <ProfileSectionTitle
         title="Badges"

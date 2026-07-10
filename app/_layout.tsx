@@ -138,6 +138,7 @@ export default function RootLayout() {
             />
             <Stack.Screen name="profile/stats" options={{ title: 'Statistiques' }} />
             <Stack.Screen name="profile/history" options={{ title: 'Historique' }} />
+            <Stack.Screen name="profile/[id]" options={{ title: 'Profil joueur' }} />
             <Stack.Screen name="profile/edit" options={{ title: 'Modifier le profil', presentation: 'modal' }} />
             <Stack.Screen name="rankings/index" options={{ title: 'Classement amis' }} />
             <Stack.Screen name="tournament/index" options={{ title: 'Tournois' }} />

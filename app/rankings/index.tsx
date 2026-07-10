@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -8,8 +9,10 @@ import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
 import { useProfileStore } from '@/store/profileStore';
 import { LeaderboardEntry, User } from '@/types';
+import { openUserProfile } from '@/utils/profileNavigation';
 
 export default function RankingsScreen() {
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const profiles = useProfileStore((s) => s.profiles);
   const friendIds = useFriendStore((s) => s.friendIds);
@@ -59,7 +62,15 @@ export default function RankingsScreen() {
       {leaderboard.map((entry) => {
         const profile = getProfile(entry.userId);
         if (!profile) return null;
-        return <PlayerListItem key={entry.userId} user={profile} rank={entry.rank} score={entry.score} />;
+        return (
+          <PlayerListItem
+            key={entry.userId}
+            user={profile}
+            rank={entry.rank}
+            score={entry.score}
+            onPress={() => openUserProfile(router, profile.id)}
+          />
+        );
       })}
     </ScrollView>
   );

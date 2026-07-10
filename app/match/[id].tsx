@@ -43,6 +43,7 @@ import {
   isRecruitmentClosed,
 } from '@/utils/matchAttendance';
 import { isGuestPlayerId, parseGuestPlayerId, resolveParticipantUser } from '@/utils/guestAttendees';
+import { openUserProfile } from '@/utils/profileNavigation';
 import { isRegisteredPresent } from '@/utils/matchStatsRoster';
 import {
   canEditComposition,
@@ -249,6 +250,20 @@ export default function MatchDetailScreen() {
       ]
     );
   };
+
+  const handlePlayerPress = useCallback(
+    (player: User) => {
+      if (player.isGuest || isGuestPlayerId(player.id)) {
+        Alert.alert(
+          'Joueur invité',
+          `${player.name} n'a pas de compte sur l'app. Les joueurs ajoutés manuellement n'ont pas de profil à consulter.`
+        );
+        return;
+      }
+      openUserProfile(router, player.id);
+    },
+    [router]
+  );
 
   const handleAddGuest = async (guestName: string, guestPosition: Position | null) => {
     await addGuestToMatch(match.id, guestName, guestPosition);
@@ -510,30 +525,35 @@ export default function MatchDetailScreen() {
           title="Présents"
           users={presentUsers}
           statusColor={Colors.success}
+          onPlayerPress={handlePlayerPress}
           onRemovePlayer={canManageRoster ? handleRemovePlayer : undefined}
         />
         <AttendanceSection
           title="Liste d'attente"
           users={getUsersByAttendance(match, 'waitlist', getProfile)}
           statusColor={Colors.primary}
+          onPlayerPress={handlePlayerPress}
           onRemovePlayer={canManageRoster ? handleRemovePlayer : undefined}
         />
         <AttendanceSection
           title="Invitations en attente"
           users={getUsersByAttendance(match, 'pending', getProfile)}
           statusColor={Colors.textMuted}
+          onPlayerPress={handlePlayerPress}
           onRemovePlayer={canManageRoster ? handleRemovePlayer : undefined}
         />
         <AttendanceSection
           title="Peut-être"
           users={maybeUsers}
           statusColor={Colors.warning}
+          onPlayerPress={handlePlayerPress}
           onRemovePlayer={canManageRoster ? handleRemovePlayer : undefined}
         />
         <AttendanceSection
           title="Absents"
           users={absentUsers}
           statusColor={Colors.error}
+          onPlayerPress={handlePlayerPress}
           onRemovePlayer={canManageRoster ? handleRemovePlayer : undefined}
         />
       </View>

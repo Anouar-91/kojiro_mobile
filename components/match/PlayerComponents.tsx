@@ -14,13 +14,14 @@ interface PlayerRowProps {
   skillScore?: number;
   showSkill?: boolean;
   rightElement?: React.ReactNode;
+  onPress?: () => void;
 }
 
-export function PlayerRow({ user, skillScore, showSkill = false, rightElement }: PlayerRowProps) {
+export function PlayerRow({ user, skillScore, showSkill = false, rightElement, onPress }: PlayerRowProps) {
   const score = skillScore ?? getSkillScore(user);
 
-  return (
-    <View style={styles.row}>
+  const content = (
+    <>
       <Avatar uri={user.avatar} size={36} name={user.name} />
       <View style={styles.info}>
         <View style={styles.nameRow}>
@@ -41,8 +42,18 @@ export function PlayerRow({ user, skillScore, showSkill = false, rightElement }:
         </View>
       )}
       {rightElement}
-    </View>
+    </>
   );
+
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
+        {content}
+      </Pressable>
+    );
+  }
+
+  return <View style={styles.row}>{content}</View>;
 }
 
 interface TeamColumnProps {
@@ -77,6 +88,7 @@ interface AttendanceSectionProps {
   users: User[];
   statusColor: string;
   onRemovePlayer?: (user: User) => void;
+  onPlayerPress?: (user: User) => void;
 }
 
 export function AttendanceSection({
@@ -84,6 +96,7 @@ export function AttendanceSection({
   users,
   statusColor,
   onRemovePlayer,
+  onPlayerPress,
 }: AttendanceSectionProps) {
   if (users.length === 0) return null;
 
@@ -101,6 +114,7 @@ export function AttendanceSection({
               {index > 0 && <View style={styles.playerDivider} />}
               <PlayerRow
                 user={user}
+                onPress={onPlayerPress ? () => onPlayerPress(user) : undefined}
                 rightElement={
                   <Pressable
                     onPress={() => onRemovePlayer(user)}
@@ -117,10 +131,20 @@ export function AttendanceSection({
       ) : (
         <View style={styles.avatarList}>
           {users.map((user) => (
-            <View key={user.id} style={styles.avatarItem}>
+            <Pressable
+              key={user.id}
+              style={({ pressed }) => [
+                styles.avatarItem,
+                user.isGuest && styles.avatarItemGuest,
+                pressed && styles.rowPressed,
+              ]}
+              onPress={onPlayerPress ? () => onPlayerPress(user) : undefined}
+              disabled={!onPlayerPress}
+            >
               <Avatar uri={user.avatar} size={36} name={user.name} showBorder />
               <Text style={styles.avatarName} numberOfLines={1}>{user.name.split(' ')[0]}</Text>
-            </View>
+              {user.isGuest && <Text style={styles.avatarGuestHint}>Invité</Text>}
+            </Pressable>
           ))}
         </View>
       )}
@@ -198,6 +222,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.sm,
     gap: Spacing.sm,
+  },
+  rowPressed: {
+    opacity: 0.85,
   },
   info: {
     flex: 1,
@@ -299,10 +326,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: 52,
   },
+  avatarItemGuest: {
+    opacity: 0.85,
+  },
   avatarName: {
     ...Typography.small,
     color: Colors.textMuted,
     marginTop: 4,
+    textAlign: 'center',
+  },
+  avatarGuestHint: {
+    ...Typography.small,
+    color: Colors.textMuted,
+    fontSize: 10,
+    marginTop: 1,
     textAlign: 'center',
   },
   manageList: {

@@ -47,7 +47,9 @@ interface PlayerListItemProps {
   score?: number;
   distance?: string;
   friendState?: 'none' | 'friends' | 'pending_sent' | 'pending_received';
+  onPress?: () => void;
   onAdd?: () => void;
+  onInvite?: () => void;
   onAccept?: () => void;
   onDecline?: () => void;
   onRemove?: () => void;
@@ -60,21 +62,23 @@ export function PlayerListItem({
   score,
   distance,
   friendState = 'none',
+  onPress,
   onAdd,
+  onInvite,
   onAccept,
   onDecline,
   onRemove,
   onCancel,
 }: PlayerListItemProps) {
-  return (
-    <View style={styles.listItem}>
+  const content = (
+    <>
       {rank !== undefined && <Text style={styles.rank}>{rank}</Text>}
       <Avatar uri={user.avatar} size={44} name={user.name} />
       <View style={styles.listInfo}>
         <Text style={styles.listName}>{user.name}</Text>
         <View style={styles.listMeta}>
           <Ionicons name="star" size={12} color={Colors.warning} />
-          <Text style={styles.rating}>{user.rating}</Text>
+          <Text style={styles.rating}>{Number(user.stats.averageRating).toFixed(1)}</Text>
           {distance && <Text style={styles.distance}> · {distance}</Text>}
         </View>
       </View>
@@ -113,22 +117,38 @@ export function PlayerListItem({
           )}
         </View>
       )}
-      {friendState === 'none' && onAdd && (
-        <Pressable onPress={onAdd} style={styles.addBtn}>
+      {friendState === 'none' && onInvite && (
+        <Pressable onPress={onInvite} style={styles.addBtn} accessibilityLabel="Inviter">
+          <Ionicons name="mail-outline" size={18} color={Colors.primary} />
+        </Pressable>
+      )}
+      {friendState === 'none' && onAdd && !onInvite && (
+        <Pressable onPress={onAdd} style={styles.addBtn} accessibilityLabel="Ajouter en ami">
           <Ionicons name="person-add" size={18} color={Colors.primary} />
         </Pressable>
       )}
-    </View>
+    </>
   );
+
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} style={styles.listItem}>
+        {content}
+      </Pressable>
+    );
+  }
+
+  return <View style={styles.listItem}>{content}</View>;
 }
 
 interface HighlightCardProps {
   post: SocialPost;
   author: User;
   onPress?: () => void;
+  onAuthorPress?: () => void;
 }
 
-export function HighlightCard({ post, author, onPress }: HighlightCardProps) {
+export function HighlightCard({ post, author, onPress, onAuthorPress }: HighlightCardProps) {
   return (
     <Card onPress={onPress} style={styles.highlight} padding={0}>
       <View style={styles.highlightMedia}>
@@ -144,8 +164,14 @@ export function HighlightCard({ post, author, onPress }: HighlightCardProps) {
       <View style={styles.highlightContent}>
         <Text style={styles.highlightText} numberOfLines={2}>{post.content}</Text>
         <View style={styles.highlightFooter}>
-          <Avatar uri={author.avatar} size={24} name={author.name} />
-          <Text style={styles.highlightAuthor}>{author.name.split(' ')[0]}</Text>
+          <Pressable
+            style={styles.highlightAuthorRow}
+            onPress={onAuthorPress}
+            disabled={!onAuthorPress}
+          >
+            <Avatar uri={author.avatar} size={24} name={author.name} />
+            <Text style={styles.highlightAuthor}>{author.name.split(' ')[0]}</Text>
+          </Pressable>
           <Text style={styles.highlightTime}>{formatRelativeTime(post.createdAt)}</Text>
           <View style={styles.highlightStats}>
             <Ionicons name="heart" size={14} color={Colors.error} />
@@ -309,10 +335,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
   },
+  highlightAuthorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+  },
   highlightAuthor: {
     ...Typography.caption,
     color: Colors.textSecondary,
-    flex: 1,
   },
   highlightTime: {
     ...Typography.small,
