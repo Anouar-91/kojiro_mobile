@@ -228,13 +228,11 @@ export default function StatsScreen() {
             key: 'fairPlay',
             label: 'Fair-play',
             value: `${Number(stats.averageFairPlay).toFixed(1)}/5`,
-            accent: true,
           },
           {
             key: 'defense',
             label: 'Défense',
             value: `${Number(stats.averageDefensiveRating).toFixed(1)}/5`,
-            accent: true,
           },
         ]}
       />

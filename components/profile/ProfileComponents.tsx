@@ -117,7 +117,7 @@ export function LevelProgress({ user }: LevelProgressProps) {
   return (
     <View style={styles.levelCard}>
       <CircularRing size={72} strokeWidth={4} progress={progress}>
-        <Text style={styles.levelRingLabel}>NIVEAU</Text>
+        <Text style={styles.levelRingLabel}>Niv.</Text>
         <Text style={styles.levelRingNumber}>{user.level}</Text>
       </CircularRing>
       <View style={styles.levelInfo}>
@@ -239,13 +239,11 @@ export function buildProfileSeasonStats(user: User): ProfileSeasonStat[] {
       key: 'fairPlay',
       label: 'Fair-play',
       value: `${Number(user.stats.averageFairPlay).toFixed(1)}/5`,
-      accent: true,
     },
     {
       key: 'defense',
       label: 'Défense',
       value: `${Number(user.stats.averageDefensiveRating).toFixed(1)}/5`,
-      accent: true,
     },
   ];
 }
