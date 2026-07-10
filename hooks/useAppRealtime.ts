@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import { subscribeToFriendRequests } from '@/services/friends';
 import { subscribeToMatchAttendees, subscribeToMatches } from '@/services/matches';
+import { subscribeToProfiles } from '@/services/profiles';
 import { useFriendStore } from '@/store/friendStore';
 import { useMatchStore } from '@/store/matchStore';
 import { useProfileStore } from '@/store/profileStore';
@@ -12,6 +13,7 @@ export function useAppRealtime(userId: string | undefined) {
   const refreshMatch = useMatchStore((s) => s.refreshMatch);
   const fetchMatches = useMatchStore((s) => s.fetchMatches);
   const ensureProfile = useProfileStore((s) => s.ensureProfile);
+  const upsertProfile = useProfileStore((s) => s.upsertProfile);
   const fetchFriends = useFriendStore((s) => s.fetchFriends);
 
   useEffect(() => {
@@ -42,10 +44,15 @@ export function useAppRealtime(userId: string | undefined) {
       fetchFriends(userId).catch(() => {});
     });
 
+    const unsubProfiles = subscribeToProfiles((profile) => {
+      upsertProfile(profile);
+    });
+
     return () => {
       unsubAttendees();
       unsubMatches();
       unsubFriends();
+      unsubProfiles();
     };
   }, [
     userId,
@@ -54,6 +61,7 @@ export function useAppRealtime(userId: string | undefined) {
     refreshMatch,
     fetchMatches,
     ensureProfile,
+    upsertProfile,
     fetchFriends,
   ]);
 }

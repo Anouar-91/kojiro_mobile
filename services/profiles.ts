@@ -1,5 +1,5 @@
 import { mapProfileToUser } from '@/lib/mappers';
-import { supabase } from '@/lib/supabase';
+import { DbProfile, supabase } from '@/lib/supabase';
 import { User } from '@/types';
 
 export async function fetchProfile(userId: string): Promise<User | null> {
@@ -49,4 +49,24 @@ export async function searchProfiles(query: string, limit = 30): Promise<User[]>
 
   if (error || !data) return [];
   return data.map(mapProfileToUser);
+}
+
+export function subscribeToProfiles(onUpdate: (profile: User) => void): () => void {
+  const channel = supabase
+    .channel('realtime:profiles')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'profiles' },
+      (payload) => onUpdate(mapProfileToUser(payload.new as DbProfile))
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'profiles' },
+      (payload) => onUpdate(mapProfileToUser(payload.new as DbProfile))
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }

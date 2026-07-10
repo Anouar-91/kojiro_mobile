@@ -9,6 +9,9 @@ interface ProfileState {
   isLoading: boolean;
   fetchProfiles: () => Promise<void>;
   ensureProfile: (userId: string) => Promise<void>;
+  upsertProfile: (profile: User) => void;
+  refreshProfile: (userId: string) => Promise<void>;
+  refreshProfiles: (userIds: string[]) => Promise<void>;
   getProfile: (id: string) => User | undefined;
   getOtherProfiles: (excludeId?: string) => User[];
 }
@@ -29,13 +32,37 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
   ensureProfile: async (userId) => {
     if (get().profiles.some((p) => p.id === userId)) return;
+    await get().refreshProfile(userId);
+  },
+
+  upsertProfile: (profile) => {
+    set((state) => {
+      const idx = state.profiles.findIndex((p) => p.id === profile.id);
+      if (idx === -1) return { profiles: [...state.profiles, profile] };
+      const next = [...state.profiles];
+      next[idx] = profile;
+      return { profiles: next };
+    });
+  },
+
+  refreshProfile: async (userId) => {
     const profile = await fetchProfile(userId);
-    if (!profile) return;
-    set((state) => ({
-      profiles: state.profiles.some((p) => p.id === userId)
-        ? state.profiles
-        : [...state.profiles, profile],
-    }));
+    if (profile) get().upsertProfile(profile);
+  },
+
+  refreshProfiles: async (userIds) => {
+    const unique = [...new Set(userIds.filter(Boolean))];
+    if (unique.length === 0) return;
+
+    const results = await Promise.all(unique.map((id) => fetchProfile(id)));
+    const fresh = results.filter(Boolean) as User[];
+    if (fresh.length === 0) return;
+
+    set((state) => {
+      const map = new Map(state.profiles.map((p) => [p.id, p]));
+      fresh.forEach((p) => map.set(p.id, p));
+      return { profiles: [...map.values()] };
+    });
   },
 
   getProfile: (id) => get().profiles.find((p) => p.id === id),

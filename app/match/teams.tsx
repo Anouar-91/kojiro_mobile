@@ -17,6 +17,7 @@ import {
   saveMatchComposition,
 } from '@/services/composition';
 import { createNotification } from '@/services/notifications';
+import { useRefreshMatchProfiles } from '@/hooks/useRefreshMatchProfiles';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { getPresentUsersFromMatch, useProfileStore } from '@/store/profileStore';
@@ -136,6 +137,8 @@ export default function TeamsScreen() {
   const match = useMatchStore((s) => s.getMatch(id ?? ''));
   const fetchMatches = useMatchStore((s) => s.fetchMatches);
   const getProfile = useProfileStore((s) => s.getProfile);
+
+  useRefreshMatchProfiles(match);
 
   const defaultLayout = useMemo(
     () => (match ? getDefaultFormation(match.format) : { def: 2, mid: 3, fwd: 2 }),

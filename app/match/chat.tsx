@@ -33,6 +33,7 @@ import { fetchProfile } from '@/services/profiles';
 import { setSuppressChatBannerMatchId } from '@/services/push';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
+import { useProfileStore } from '@/store/profileStore';
 import { ChatMessage, User } from '@/types';
 import { openUserProfile } from '@/utils/profileNavigation';
 
@@ -50,6 +51,7 @@ export default function MatchChatScreen() {
   const [sending, setSending] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const fetchNotifications = useMatchStore((s) => s.fetchNotifications);
+  const upsertProfile = useProfileStore((s) => s.upsertProfile);
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const shouldScrollToEndRef = useRef(true);
   const loadingOlderRef = useRef(false);
@@ -69,10 +71,13 @@ export default function MatchChatScreen() {
       if (m.senderId === 'system' || loadedSenderIdsRef.current.has(m.senderId)) return;
       loadedSenderIdsRef.current.add(m.senderId);
       fetchProfile(m.senderId).then((profile) => {
-        if (profile) setSenders((prev) => ({ ...prev, [m.senderId]: profile }));
+        if (profile) {
+          upsertProfile(profile);
+          setSenders((prev) => ({ ...prev, [m.senderId]: profile }));
+        }
       });
     });
-  }, []);
+  }, [upsertProfile]);
 
   const scrollToLatest = useCallback((animated = true) => {
     shouldScrollToEndRef.current = true;

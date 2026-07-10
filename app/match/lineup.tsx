@@ -5,6 +5,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { PitchFormationReadOnly } from '@/components/match/PitchFormation';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { fetchMatchComposition, getSlotAssignments } from '@/services/composition';
+import { useRefreshMatchProfiles } from '@/hooks/useRefreshMatchProfiles';
 import { useMatchStore } from '@/store/matchStore';
 import { useProfileStore } from '@/store/profileStore';
 import { User } from '@/types';
@@ -22,6 +23,8 @@ export default function LineupScreen() {
   const getProfile = useProfileStore((s) => s.getProfile);
   const [composition, setComposition] = useState<MatchComposition | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useRefreshMatchProfiles(match);
 
   useEffect(() => {
     if (!match) return;

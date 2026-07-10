@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { signInWithApple, signInWithGoogle } from '@/services/auth/oauth';
 import { fetchProfile, updateProfile } from '@/services/profiles';
 import { User } from '@/types';
+import { useProfileStore } from '@/store/profileStore';
 
 interface AuthState {
   user: User | null;
@@ -166,14 +167,20 @@ export const useAuthStore = create<AuthState>()(
 
         const dbUpdates = userToProfileUpdate(updates);
         const updated = await updateProfile(user.id, dbUpdates);
-        if (updated) set({ user: updated });
+        if (updated) {
+          set({ user: updated });
+          useProfileStore.getState().upsertProfile(updated);
+        }
       },
 
       refreshProfile: async () => {
         const { user } = get();
         if (!user) return;
         const profile = await fetchProfile(user.id);
-        if (profile) set({ user: profile });
+        if (profile) {
+          set({ user: profile });
+          useProfileStore.getState().upsertProfile(profile);
+        }
       },
     }),
     {
