@@ -1,18 +1,31 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors, Spacing } from '@/constants/theme';
 import { useMatchStore } from '@/store/matchStore';
 
+const ANDROID_TAB_BAR_HEIGHT = 64;
+
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
   const unreadCount = useMatchStore((s) => s.unreadCount());
+
+  const tabBarStyle =
+    Platform.OS === 'android'
+      ? {
+          ...styles.tabBar,
+          height: ANDROID_TAB_BAR_HEIGHT + insets.bottom,
+          paddingBottom: insets.bottom,
+        }
+      : { ...styles.tabBar, ...styles.tabBarIos };
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle,
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textMuted,
         tabBarLabelStyle: styles.tabLabel,
@@ -67,8 +80,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderTopColor: Colors.border,
     borderTopWidth: 1,
-    height: Platform.OS === 'ios' ? 88 : 64,
     paddingTop: Spacing.sm,
+  },
+  tabBarIos: {
+    height: 88,
   },
   tabLabel: {
     fontSize: 11,
