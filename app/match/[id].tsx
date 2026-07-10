@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MatchOrganizerSteps } from '@/components/match/MatchOrganizerSteps';
 import { AddGuestPlayerModal } from '@/components/match/AddGuestPlayerModal';
 import { CaptainPicker } from '@/components/match/CaptainPicker';
+import { MatchSubstitutesEditor } from '@/components/match/MatchSubstitutesEditor';
 import { DevFillMatchPanel } from '@/components/dev/DevFillMatchPanel';
 
 import { Badge } from '@/components/ui/Badge';
@@ -72,6 +73,7 @@ export default function MatchDetailScreen() {
   const addGuestToMatch = useMatchStore((s) => s.addGuestToMatch);
   const removeAttendeeById = useMatchStore((s) => s.removeAttendeeById);
   const fetchMatches = useMatchStore((s) => s.fetchMatches);
+  const updateSubstitutesPerTeam = useMatchStore((s) => s.updateSubstitutesPerTeam);
   const getProfile = useProfileStore((s) => s.getProfile);
   const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
   const isFriend = useFriendStore((s) => s.isFriend);
@@ -81,6 +83,7 @@ export default function MatchDetailScreen() {
   const [captainBId, setCaptainBId] = useState<string | null>(null);
   const [savingCaptains, setSavingCaptains] = useState(false);
   const [guestModalVisible, setGuestModalVisible] = useState(false);
+  const [savingSubstitutes, setSavingSubstitutes] = useState(false);
   const { unreadCount: chatUnreadCount } = useMatchChatUnread(match?.id, user?.id);
   const insets = useSafeAreaInsets();
 
@@ -218,6 +221,20 @@ export default function MatchDetailScreen() {
 
   const canManageRoster = canOrganizerManageRoster(match, isOrganizer);
   const canAddPlayers = canAddToRoster(match, isOrganizer);
+  const canEditSubstitutes =
+    isOrganizer && (match.status === 'upcoming' || match.status === 'live');
+  const handleIncreaseSubstitutes = async (nextValue: number) => {
+    if (!canEditSubstitutes || nextValue <= match.substitutesPerTeam) return;
+    setSavingSubstitutes(true);
+    try {
+      await updateSubstitutesPerTeam(match.id, nextValue);
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de modifier les remplaçants');
+    } finally {
+      setSavingSubstitutes(false);
+    }
+  };
+
   const handleRemovePlayer = (player: User) => {
     if (!canManageRoster || player.id === match.organizerId) return;
     Alert.alert(
@@ -402,6 +419,18 @@ export default function MatchDetailScreen() {
             match={match}
             presentCount={presentUsers.length}
             hasComposition={hasComposition}
+          />
+        </View>
+      )}
+
+      {canEditSubstitutes && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Remplaçants</Text>
+          <MatchSubstitutesEditor
+            playersPerTeam={match.format}
+            substitutesPerTeam={match.substitutesPerTeam}
+            saving={savingSubstitutes}
+            onIncrease={handleIncreaseSubstitutes}
           />
         </View>
       )}

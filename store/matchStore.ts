@@ -5,9 +5,10 @@ import {
   fetchNotifications,
   markNotificationRead as markReadApi,
 } from '@/services/notifications';
-import { createMatch as createMatchApi, fetchMatchById, fetchMatches, addGuestToMatch as addGuestToMatchApi, removeAttendeeById as removeAttendeeByIdApi, removeAttendeeByOrganizer as removeAttendeeByOrganizerApi, RealtimeAttendeeRow, upsertAttendance } from '@/services/matches';
+import { createMatch as createMatchApi, fetchMatchById, fetchMatches, addGuestToMatch as addGuestToMatchApi, removeAttendeeById as removeAttendeeByIdApi, removeAttendeeByOrganizer as removeAttendeeByOrganizerApi, RealtimeAttendeeRow, updateMatchSubstitutes as updateMatchSubstitutesApi, upsertAttendance } from '@/services/matches';
 import { createNotification } from '@/services/notifications';
 import { AttendanceStatus, Match, MatchAttendee, MatchFormat, MatchVisibility, Notification, Position } from '@/types';
+import { getMaxPlayers } from '@/utils/formatters';
 
 interface CreateMatchData {
   title: string;
@@ -34,6 +35,7 @@ interface MatchState {
   fetchNotifications: (userId: string) => Promise<void>;
   getMatch: (id: string) => Match | undefined;
   createMatch: (data: CreateMatchData, organizerId: string) => Promise<Match>;
+  updateSubstitutesPerTeam: (matchId: string, substitutesPerTeam: number) => Promise<void>;
   updateAttendance: (matchId: string, userId: string, status: AttendanceStatus) => Promise<void>;
   removeAttendeeByOrganizer: (matchId: string, userId: string) => Promise<void>;
   addGuestToMatch: (matchId: string, guestName: string, guestPosition?: Position | null) => Promise<void>;
@@ -94,6 +96,20 @@ export const useMatchStore = create<MatchState>((set, get) => ({
       // notification optionnelle
     }
     return match;
+  },
+
+  updateSubstitutesPerTeam: async (matchId, substitutesPerTeam) => {
+    await updateMatchSubstitutesApi(matchId, substitutesPerTeam);
+    set((state) => ({
+      matches: state.matches.map((match) => {
+        if (match.id !== matchId) return match;
+        return {
+          ...match,
+          substitutesPerTeam,
+          maxPlayers: getMaxPlayers(match.format, substitutesPerTeam),
+        };
+      }),
+    }));
   },
 
   updateAttendance: async (matchId, userId, status) => {

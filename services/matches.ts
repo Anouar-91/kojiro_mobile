@@ -102,6 +102,17 @@ export async function createMatch(input: CreateMatchInput): Promise<Match> {
   return refreshed;
 }
 
+export async function updateMatchSubstitutes(
+  matchId: string,
+  substitutesPerTeam: number
+): Promise<void> {
+  const { error } = await supabase.rpc('organizer_update_substitutes', {
+    p_match_id: matchId,
+    p_substitutes_per_team: substitutesPerTeam,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function upsertAttendance(
   matchId: string,
   userId: string,
