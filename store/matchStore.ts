@@ -2,12 +2,13 @@ import { create } from 'zustand';
 
 import {
   ensureWelcomeNotification,
-  fetchNotifications,
+  fetchUnreadNotificationsCount,
+  markAllNotificationsRead as markAllReadApi,
   markNotificationRead as markReadApi,
 } from '@/services/notifications';
 import { createMatch as createMatchApi, fetchMatchById, fetchMatches, addGuestToMatch as addGuestToMatchApi, removeAttendeeById as removeAttendeeByIdApi, removeAttendeeByOrganizer as removeAttendeeByOrganizerApi, RealtimeAttendeeRow, updateMatchSubstitutes as updateMatchSubstitutesApi, upsertAttendance } from '@/services/matches';
 import { createNotification } from '@/services/notifications';
-import { AttendanceStatus, Match, MatchAttendee, MatchFormat, MatchVisibility, Notification, Position } from '@/types';
+import { AttendanceStatus, Match, MatchAttendee, MatchFormat, MatchVisibility, Position } from '@/types';
 import { getMaxPlayers } from '@/utils/formatters';
 
 interface CreateMatchData {
@@ -27,7 +28,7 @@ interface CreateMatchData {
 
 interface MatchState {
   matches: Match[];
-  notifications: Notification[];
+  unreadNotificationsCount: number;
   selectedMatchId: string | null;
   isLoading: boolean;
   error: string | null;
@@ -46,12 +47,13 @@ interface MatchState {
   refreshMatch: (matchId: string) => Promise<void>;
   setSelectedMatch: (id: string | null) => void;
   markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: (userId: string) => Promise<void>;
   unreadCount: () => number;
 }
 
 export const useMatchStore = create<MatchState>((set, get) => ({
   matches: [],
-  notifications: [],
+  unreadNotificationsCount: 0,
   selectedMatchId: null,
   isLoading: false,
   error: null,
@@ -72,8 +74,8 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   fetchNotifications: async (userId) => {
     try {
       await ensureWelcomeNotification(userId);
-      const notifications = await fetchNotifications(userId);
-      set({ notifications });
+      const unreadNotificationsCount = await fetchUnreadNotificationsCount(userId);
+      set({ unreadNotificationsCount });
     } catch {
       // silencieux si table pas encore migrée
     }
@@ -238,11 +240,14 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   markNotificationRead: async (id) => {
     await markReadApi(id);
     set((state) => ({
-      notifications: state.notifications.map((n) =>
-        n.id === id ? { ...n, read: true } : n
-      ),
+      unreadNotificationsCount: Math.max(0, state.unreadNotificationsCount - 1),
     }));
   },
 
-  unreadCount: () => get().notifications.filter((n) => !n.read).length,
+  markAllNotificationsRead: async (userId) => {
+    await markAllReadApi(userId);
+    set({ unreadNotificationsCount: 0 });
+  },
+
+  unreadCount: () => get().unreadNotificationsCount,
 }));

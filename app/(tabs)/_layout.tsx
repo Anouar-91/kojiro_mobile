@@ -10,7 +10,7 @@ const ANDROID_TAB_BAR_HEIGHT = 64;
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
-  const unreadCount = useMatchStore((s) => s.unreadCount());
+  const unreadCount = useMatchStore((s) => s.unreadNotificationsCount);
 
   const tabBarStyle =
     Platform.OS === 'android'

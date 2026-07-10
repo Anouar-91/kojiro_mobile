@@ -26,7 +26,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const matches = useMatchStore((s) => s.matches);
-  const unreadCount = useMatchStore((s) => s.unreadCount());
+  const unreadCount = useMatchStore((s) => s.unreadNotificationsCount);
   const getProfile = useProfileStore((s) => s.getProfile);
   const friendIds = useFriendStore((s) => s.friendIds);
   const refresh = useAppRefresh();

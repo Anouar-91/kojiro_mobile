@@ -11,7 +11,7 @@ export function useNotificationSubscription(
 ) {
   const fetchNotifications = useMatchStore((s) => s.fetchNotifications);
   const fetchMatches = useMatchStore((s) => s.fetchMatches);
-  const unreadCount = useMatchStore((s) => s.unreadCount);
+  const unreadNotificationsCount = useMatchStore((s) => s.unreadNotificationsCount);
 
   useEffect(() => {
     if (!userId) return;
@@ -40,6 +40,6 @@ export function useNotificationSubscription(
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
-    setAppBadgeCount(unreadCount()).catch(() => {});
-  }, [unreadCount]);
+    setAppBadgeCount(unreadNotificationsCount).catch(() => {});
+  }, [unreadNotificationsCount]);
 }

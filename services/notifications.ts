@@ -1,6 +1,10 @@
 import { supabase } from '@/lib/supabase';
 import { Notification } from '@/types';
 
+export const NOTIFICATIONS_PAGE_SIZE = 30;
+
+export type NotificationReadFilter = 'all' | 'unread' | 'read';
+
 function mapNotification(row: {
   id: string;
   user_id: string;
@@ -22,19 +26,55 @@ function mapNotification(row: {
   };
 }
 
-export async function fetchNotifications(userId: string): Promise<Notification[]> {
-  const { data, error } = await supabase
+export async function fetchNotificationsPage(
+  userId: string,
+  options: {
+    beforeCreatedAt?: string;
+    limit?: number;
+    readFilter?: NotificationReadFilter;
+  } = {},
+): Promise<Notification[]> {
+  const { beforeCreatedAt, limit = NOTIFICATIONS_PAGE_SIZE, readFilter = 'all' } = options;
+
+  let query = supabase
     .from('notifications')
     .select('*')
     .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(limit);
 
+  if (readFilter === 'unread') query = query.eq('read', false);
+  if (readFilter === 'read') query = query.eq('read', true);
+  if (beforeCreatedAt) query = query.lt('created_at', beforeCreatedAt);
+
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
   return (data ?? []).map(mapNotification);
 }
 
+export async function fetchUnreadNotificationsCount(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('read', false);
+
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
 export async function markNotificationRead(id: string): Promise<void> {
   const { error } = await supabase.from('notifications').update({ read: true }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read: true })
+    .eq('user_id', userId)
+    .eq('read', false);
+
   if (error) throw new Error(error.message);
 }
 
@@ -73,8 +113,13 @@ export function subscribeToNotifications(userId: string, onInsert: () => void): 
 }
 
 export async function ensureWelcomeNotification(userId: string): Promise<void> {
-  const existing = await fetchNotifications(userId);
-  if (existing.length > 0) return;
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId);
+
+  if (error) throw new Error(error.message);
+  if ((count ?? 0) > 0) return;
 
   await createNotification(userId, {
     type: 'social',
