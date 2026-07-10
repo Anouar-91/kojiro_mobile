@@ -12,14 +12,18 @@ type MessageChannel = {
 
 const messageChannels = new Map<string, MessageChannel>();
 
-function mapRowToMessage(m: {
+export const CHAT_PAGE_SIZE = 50;
+
+type MessageRow = {
   id: string;
   match_id: string;
   sender_id: string | null;
   content: string;
   type: string;
   created_at: string;
-}): ChatMessage {
+};
+
+function mapRowToMessage(m: MessageRow): ChatMessage {
   return {
     id: m.id,
     chatId: m.match_id,
@@ -30,23 +34,44 @@ function mapRowToMessage(m: {
   };
 }
 
-export async function fetchMessages(matchId: string): Promise<ChatMessage[]> {
+function sortMessagesAsc(messages: ChatMessage[]): ChatMessage[] {
+  return [...messages].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
+}
+
+export async function fetchRecentMessages(
+  matchId: string,
+  limit = CHAT_PAGE_SIZE,
+): Promise<ChatMessage[]> {
   const { data, error } = await supabase
     .from('messages')
     .select('*')
     .eq('match_id', matchId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false })
+    .limit(limit);
 
   if (error) throw new Error(error.message);
 
-  return (data ?? []).map((m) => ({
-    id: m.id,
-    chatId: m.match_id,
-    senderId: m.sender_id ?? 'system',
-    content: m.content,
-    timestamp: m.created_at,
-    type: m.type as ChatMessage['type'],
-  }));
+  return sortMessagesAsc((data ?? []).map(mapRowToMessage));
+}
+
+export async function fetchOlderMessages(
+  matchId: string,
+  beforeCreatedAt: string,
+  limit = CHAT_PAGE_SIZE,
+): Promise<ChatMessage[]> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('match_id', matchId)
+    .lt('created_at', beforeCreatedAt)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+
+  return sortMessagesAsc((data ?? []).map(mapRowToMessage));
 }
 
 export async function sendMessage(

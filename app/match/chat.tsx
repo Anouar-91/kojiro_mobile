@@ -1,9 +1,11 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Keyboard,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   StyleSheet,
@@ -20,7 +22,13 @@ import {
   markChatRead,
   setActiveChatMatchId,
 } from '@/services/chatReads';
-import { fetchMessages, sendMessage, subscribeToMessages } from '@/services/messages';
+import {
+  CHAT_PAGE_SIZE,
+  fetchOlderMessages,
+  fetchRecentMessages,
+  sendMessage,
+  subscribeToMessages,
+} from '@/services/messages';
 import { fetchProfile } from '@/services/profiles';
 import { setSuppressChatBannerMatchId } from '@/services/push';
 import { useAuthStore } from '@/store/authStore';
@@ -37,17 +45,96 @@ export default function MatchChatScreen() {
   const [senders, setSenders] = useState<Record<string, User>>({});
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
   const [sending, setSending] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const fetchNotifications = useMatchStore((s) => s.fetchNotifications);
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const shouldScrollToEndRef = useRef(true);
+  const loadingOlderRef = useRef(false);
+  const loadedSenderIdsRef = useRef(new Set<string>());
+  const messagesRef = useRef<ChatMessage[]>([]);
+  const hasMoreOlderRef = useRef(false);
+  const canAutoLoadOlderRef = useRef(false);
   const insets = useSafeAreaInsets();
 
-  const scrollToLatest = useCallback((animated = true) => {
-    requestAnimationFrame(() => {
-      listRef.current?.scrollToEnd({ animated });
+  const displayMessages = useMemo(() => [...messages].reverse(), [messages]);
+
+  messagesRef.current = messages;
+  hasMoreOlderRef.current = hasMoreOlder;
+
+  const ensureSendersLoaded = useCallback((msgs: ChatMessage[]) => {
+    msgs.forEach((m) => {
+      if (m.senderId === 'system' || loadedSenderIdsRef.current.has(m.senderId)) return;
+      loadedSenderIdsRef.current.add(m.senderId);
+      fetchProfile(m.senderId).then((profile) => {
+        if (profile) setSenders((prev) => ({ ...prev, [m.senderId]: profile }));
+      });
     });
   }, []);
+
+  const scrollToLatest = useCallback((animated = true) => {
+    shouldScrollToEndRef.current = true;
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToOffset({ offset: 0, animated });
+    });
+  }, []);
+
+  const handleContentSizeChange = useCallback(() => {
+    if (shouldScrollToEndRef.current) {
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    }
+  }, []);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!match || loadingOlderRef.current || !hasMoreOlderRef.current || !canAutoLoadOlderRef.current) {
+      return;
+    }
+
+    const current = messagesRef.current;
+    if (current.length < CHAT_PAGE_SIZE) return;
+
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+    shouldScrollToEndRef.current = false;
+
+    try {
+      const older = await fetchOlderMessages(match.id, current[0].timestamp);
+      if (older.length === 0) {
+        setHasMoreOlder(false);
+        return;
+      }
+
+      setMessages((prev) => {
+        const ids = new Set(prev.map((m) => m.id));
+        const unique = older.filter((m) => !ids.has(m.id));
+        return [...unique, ...prev];
+      });
+      ensureSendersLoaded(older);
+      setHasMoreOlder(older.length >= CHAT_PAGE_SIZE);
+    } finally {
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+    }
+  }, [match, ensureSendersLoaded]);
+
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset } = event.nativeEvent;
+    shouldScrollToEndRef.current = contentOffset.y <= 80;
+    if (contentOffset.y > 120) {
+      canAutoLoadOlderRef.current = true;
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      shouldScrollToEndRef.current = true;
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToOffset({ offset: 0, animated: false });
+      });
+    }, []),
+  );
 
   const syncRead = useCallback(async () => {
     if (!match || !user) return;
@@ -73,20 +160,18 @@ export default function MatchChatScreen() {
     if (!match) return;
 
     let active = true;
+    loadedSenderIdsRef.current.clear();
+    canAutoLoadOlderRef.current = false;
+    setMessages([]);
+    setHasMoreOlder(false);
+    setLoading(true);
 
-    fetchMessages(match.id)
+    fetchRecentMessages(match.id)
       .then((msgs) => {
         if (!active) return;
         setMessages(msgs);
-        msgs.forEach((m) => {
-          if (m.senderId !== 'system') {
-            fetchProfile(m.senderId).then((profile) => {
-              if (profile && active) {
-                setSenders((prev) => ({ ...prev, [m.senderId]: profile }));
-              }
-            });
-          }
-        });
+        setHasMoreOlder(msgs.length >= CHAT_PAGE_SIZE);
+        ensureSendersLoaded(msgs);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -94,11 +179,7 @@ export default function MatchChatScreen() {
 
     const unsubscribe = subscribeToMessages(match.id, (msg) => {
       setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
-      if (msg.senderId !== 'system') {
-        fetchProfile(msg.senderId).then((profile) => {
-          if (profile) setSenders((prev) => ({ ...prev, [msg.senderId]: profile }));
-        });
-      }
+      ensureSendersLoaded([msg]);
       if (user && msg.senderId !== user.id) {
         syncRead();
       }
@@ -108,7 +189,7 @@ export default function MatchChatScreen() {
       active = false;
       unsubscribe();
     };
-  }, [match, user, syncRead]);
+  }, [match, user, syncRead, ensureSendersLoaded]);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -130,10 +211,10 @@ export default function MatchChatScreen() {
   }, [scrollToLatest]);
 
   useEffect(() => {
-    if (messages.length > 0) {
+    if (!loading && messages.length > 0 && shouldScrollToEndRef.current && !loadingOlderRef.current) {
       scrollToLatest(false);
     }
-  }, [messages.length, scrollToLatest]);
+  }, [loading, messages.length, scrollToLatest]);
 
   const handleSend = async () => {
     if (!input.trim() || !user || !match || sending) return;
@@ -149,6 +230,24 @@ export default function MatchChatScreen() {
     }
   };
 
+  const loadOlderFooter = hasMoreOlder ? (
+    <View style={styles.loadOlder}>
+      {loadingOlder ? (
+        <ActivityIndicator size="small" color={Colors.primary} />
+      ) : (
+        <Pressable
+          onPress={() => {
+            canAutoLoadOlderRef.current = true;
+            loadOlderMessages();
+          }}
+          hitSlop={8}
+        >
+          <Text style={styles.loadOlderText}>Voir les messages précédents</Text>
+        </Pressable>
+      )}
+    </View>
+  ) : null;
+
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -163,14 +262,24 @@ export default function MatchChatScreen() {
     <View style={styles.container}>
       <FlatList
         ref={listRef}
-        data={messages}
+        inverted={displayMessages.length > 0}
+        data={displayMessages}
         keyExtractor={(item) => item.id}
         style={styles.list}
         contentContainerStyle={[
           styles.listContent,
-          messages.length > 0 && styles.listContentFilled,
-          { paddingBottom: Spacing.md },
+          displayMessages.length === 0 && styles.listContentEmpty,
+          { paddingTop: Spacing.md },
         ]}
+        maintainVisibleContentPosition={
+          displayMessages.length > 0 ? { minIndexForVisible: 0 } : undefined
+        }
+        onContentSizeChange={handleContentSizeChange}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        onEndReached={loadOlderMessages}
+        onEndReachedThreshold={0.1}
+        ListFooterComponent={loadOlderFooter}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         renderItem={({ item }) => {
@@ -220,9 +329,20 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
   list: { flex: 1 },
-  listContent: { padding: Spacing.lg, flexGrow: 1 },
-  listContentFilled: { justifyContent: 'flex-end' },
-  empty: { color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.xxxl },
+  listContent: { paddingHorizontal: Spacing.lg },
+  listContentEmpty: { flexGrow: 1, justifyContent: 'center' },
+  loadOlder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    minHeight: 44,
+  },
+  loadOlderText: {
+    color: Colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  empty: { color: Colors.textMuted, textAlign: 'center' },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',

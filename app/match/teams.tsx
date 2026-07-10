@@ -11,6 +11,8 @@ import { Colors, Spacing, Typography } from '@/constants/theme';
 import {
   buildLineupsFromState,
   fetchMatchComposition,
+  filterRostersToPresent,
+  filterSlotAssignmentsToPresent,
   normalizeTeamRosters,
   saveMatchComposition,
 } from '@/services/composition';
@@ -18,7 +20,7 @@ import { createNotification } from '@/services/notifications';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { getPresentUsersFromMatch, useProfileStore } from '@/store/profileStore';
-import { User } from '@/types';
+import { Match, User } from '@/types';
 import { MatchComposition, TeamSide } from '@/types/lineup';
 import {
   autoFillLineup,
@@ -41,6 +43,22 @@ import { getAttendeeParticipantId, resolveParticipantUser, uniqueParticipantIds 
 import { balanceTeams } from '@/utils/teamBalancer';
 
 type Step = 'teams' | 'formation-a' | 'formation-b' | 'review';
+
+function getPresentParticipantIds(attendees: Match['attendees']): string[] {
+  return uniqueParticipantIds(
+    attendees.filter((a) => a.status === 'present').map((a) => getAttendeeParticipantId(a))
+  );
+}
+
+function formatWithdrawnNames(
+  removedIds: string[],
+  resolveName: (id: string) => string | null
+): string {
+  const names = removedIds.map((id) => resolveName(id) ?? 'Un joueur');
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} et ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')} et ${names[names.length - 1]}`;
+}
 
 function autoToSlotAssignments(auto: Record<string, string>): Record<string, string> {
   const result: Record<string, string> = {};
@@ -136,17 +154,15 @@ export default function TeamsScreen() {
   const [saving, setSaving] = useState(false);
   const [compositionMeta, setCompositionMeta] = useState<MatchComposition | null>(null);
   const rostersRef = useRef({ teamAIds, teamBIds });
+  const skipNextSyncAlertRef = useRef(true);
   rostersRef.current = { teamAIds, teamBIds };
 
   const presentIdsKey = useMemo(
-    () =>
-      match
-        ? match.attendees
-            .filter((a) => a.status === 'present')
-            .map((a) => getAttendeeParticipantId(a))
-            .sort()
-            .join(',')
-        : '',
+    () => (match ? getPresentParticipantIds(match.attendees).sort().join(',') : ''),
+    [match?.attendees]
+  );
+  const presentParticipantIds = useMemo(
+    () => (match ? getPresentParticipantIds(match.attendees) : []),
     [match?.attendees]
   );
 
@@ -251,9 +267,10 @@ export default function TeamsScreen() {
   useEffect(() => {
     if (loading || !match || !presentIdsKey) return;
 
-    const presentIds = uniqueParticipantIds(presentIdsKey ? presentIdsKey.split(',') : []);
+    const presentIds = presentParticipantIds;
     const presentSet = new Set(presentIds);
     const { teamAIds: prevA, teamBIds: prevB } = rostersRef.current;
+    const removedIds = [...new Set([...prevA, ...prevB])].filter((id) => !presentSet.has(id));
     const synced = syncRostersWithPresentPlayers(prevA, prevB, presentIds);
 
     if (synced.changed) {
@@ -263,7 +280,17 @@ export default function TeamsScreen() {
 
     setSlotsA((prev) => removeAbsentFromSlots(prev, presentSet));
     setSlotsB((prev) => removeAbsentFromSlots(prev, presentSet));
-  }, [presentIdsKey, loading, match]);
+
+    if (!skipNextSyncAlertRef.current && removedIds.length > 0) {
+      const names = formatWithdrawnNames(removedIds, (id) => resolveParticipantUser(id, match, getProfile)?.name ?? null);
+      const body =
+        removedIds.length === 1
+          ? `${names} n'est plus disponible et a été retiré des équipes.`
+          : `${names} ne sont plus disponibles et ont été retirés des équipes.`;
+      Alert.alert('Effectif mis à jour', body);
+    }
+    skipNextSyncAlertRef.current = false;
+  }, [presentIdsKey, presentParticipantIds, loading, match, getProfile]);
 
   const registeredPresentIds = useMemo(
     () => (match ? getRegisteredPresentUserIds(match.attendees) : new Set<string>()),
@@ -421,21 +448,36 @@ export default function TeamsScreen() {
 
     setSaving(true);
     try {
-      const { teamAIds: rosterA, teamBIds: rosterB } = normalizeTeamRosters(teamAIds, teamBIds);
+      const {
+        teamAIds: presentA,
+        teamBIds: presentB,
+        removedIds,
+      } = filterRostersToPresent(teamAIds, teamBIds, presentParticipantIds);
+      const saveSlotsA = filterSlotAssignmentsToPresent(slotsA, presentParticipantIds);
+      const saveSlotsB = filterSlotAssignmentsToPresent(slotsB, presentParticipantIds);
+
+      if (removedIds.length > 0) {
+        setTeamAIds(presentA);
+        setTeamBIds(presentB);
+        setSlotsA(saveSlotsA);
+        setSlotsB(saveSlotsB);
+      }
+
+      const { teamAIds: rosterA, teamBIds: rosterB } = normalizeTeamRosters(presentA, presentB);
       const lineups = side
         ? buildLineupsFromState(
             side === 'A' ? rosterA : [],
             side === 'B' ? rosterB : [],
-            side === 'A' ? slotsA : {},
-            side === 'B' ? slotsB : {},
+            side === 'A' ? saveSlotsA : {},
+            side === 'B' ? saveSlotsB : {},
             formationSlotsA,
             formationSlotsB
           )
         : buildLineupsFromState(
             rosterA,
             rosterB,
-            slotsA,
-            slotsB,
+            saveSlotsA,
+            saveSlotsB,
             formationSlotsA,
             formationSlotsB
           );
@@ -765,6 +807,10 @@ function OpponentPreview({
   );
 }
 
+function formatPlayerCount(count: number): string {
+  return count === 1 ? '1 joueur' : `${count} joueurs`;
+}
+
 function TeamList({
   title,
   color,
@@ -780,9 +826,16 @@ function TeamList({
   onMove: (userId: string) => void;
   moveIcon: keyof typeof Ionicons.glyphMap;
 }) {
+  const count = uniqueParticipantIds(userIds).length;
+
   return (
     <View style={[styles.teamCol, { borderColor: `${color}50` }]}>
-      <Text style={[styles.teamColTitle, { color }]}>{title}</Text>
+      <View style={styles.teamColHeader}>
+        <Text style={[styles.teamColTitle, { color }]}>{title}</Text>
+        <View style={[styles.teamCountBadge, { backgroundColor: `${color}18`, borderColor: `${color}40` }]}>
+          <Text style={[styles.teamCountText, { color }]}>{formatPlayerCount(count)}</Text>
+        </View>
+      </View>
       {uniqueParticipantIds(userIds).map((uid) => {
         const p = resolveUser(uid);
         if (!p) return null;
@@ -844,7 +897,21 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderWidth: 1.5,
   },
-  teamColTitle: { ...Typography.h3, fontSize: 16, marginBottom: Spacing.sm },
+  teamColHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  teamColTitle: { ...Typography.h3, fontSize: 16, flex: 1 },
+  teamCountBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  teamCountText: { ...Typography.caption, fontWeight: '700' },
   teamRow: { flexDirection: 'row', alignItems: 'center' },
   teamRowPlayer: { flex: 1 },
   moveBtn: { padding: Spacing.sm },

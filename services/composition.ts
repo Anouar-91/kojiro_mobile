@@ -154,3 +154,29 @@ export function normalizeTeamRosters(teamAIds: string[], teamBIds: string[]): {
   const teamB = [...new Set(teamBIds)].filter((id) => !teamA.includes(id));
   return { teamAIds: teamA, teamBIds: teamB };
 }
+
+export function filterRostersToPresent(
+  teamAIds: string[],
+  teamBIds: string[],
+  presentIds: string[]
+): { teamAIds: string[]; teamBIds: string[]; removedIds: string[] } {
+  const presentSet = new Set(presentIds);
+  const removedIds = [...new Set([...teamAIds, ...teamBIds])].filter((id) => !presentSet.has(id));
+  return {
+    teamAIds: teamAIds.filter((id) => presentSet.has(id)),
+    teamBIds: teamBIds.filter((id) => presentSet.has(id)),
+    removedIds,
+  };
+}
+
+export function filterSlotAssignmentsToPresent(
+  slots: Record<string, string>,
+  presentIds: string[]
+): Record<string, string> {
+  const presentSet = new Set(presentIds);
+  const next = { ...slots };
+  for (const [slotId, userId] of Object.entries(next)) {
+    if (!presentSet.has(userId)) delete next[slotId];
+  }
+  return next;
+}
