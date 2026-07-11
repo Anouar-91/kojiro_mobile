@@ -7,11 +7,15 @@ import {
 } from '@/services/chatReads';
 import { subscribeToMessages } from '@/services/messages';
 
-export function useMatchChatUnread(matchId: string | undefined, userId: string | undefined) {
+export function useMatchChatUnread(
+  matchId: string | undefined,
+  userId: string | undefined,
+  enabled = true
+) {
   const [unreadCount, setUnreadCount] = useState(0);
 
   const refresh = useCallback(async () => {
-    if (!matchId || !userId) {
+    if (!matchId || !userId || !enabled) {
       setUnreadCount(0);
       return;
     }
@@ -25,21 +29,21 @@ export function useMatchChatUnread(matchId: string | undefined, userId: string |
     } catch {
       setUnreadCount(0);
     }
-  }, [matchId, userId]);
+  }, [matchId, userId, enabled]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
   useEffect(() => {
-    if (!matchId) return;
+    if (!matchId || !enabled) return;
     return onChatRead((readMatchId) => {
       if (readMatchId === matchId) refresh();
     });
-  }, [matchId, refresh]);
+  }, [matchId, refresh, enabled]);
 
   useEffect(() => {
-    if (!matchId || !userId) return;
+    if (!matchId || !userId || !enabled) return;
 
     const unsubscribe = subscribeToMessages(matchId, (msg) => {
       if (msg.senderId === userId || msg.type === 'system') return;
@@ -48,7 +52,7 @@ export function useMatchChatUnread(matchId: string | undefined, userId: string |
     });
 
     return unsubscribe;
-  }, [matchId, userId, refresh]);
+  }, [matchId, userId, refresh, enabled]);
 
   return { unreadCount, refresh };
 }

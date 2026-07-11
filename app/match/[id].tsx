@@ -33,6 +33,7 @@ import {
   canChangeToPresent,
   canClaimWaitlistSpot,
   canJoinWaitlist,
+  canAccessMatchChat,
   canManageRoster as canOrganizerManageRoster,
   canUseFullAttendanceUI,
   canSetPresent,
@@ -84,7 +85,11 @@ export default function MatchDetailScreen() {
   const [savingCaptains, setSavingCaptains] = useState(false);
   const [guestModalVisible, setGuestModalVisible] = useState(false);
   const [savingSubstitutes, setSavingSubstitutes] = useState(false);
-  const { unreadCount: chatUnreadCount } = useMatchChatUnread(match?.id, user?.id);
+  const canUseChat = useMemo(
+    () => (match && user ? canAccessMatchChat(match, user.id) : false),
+    [match, user?.id]
+  );
+  const { unreadCount: chatUnreadCount } = useMatchChatUnread(match?.id, user?.id, canUseChat);
   const insets = useSafeAreaInsets();
 
   const presentAttendeeKey = useMemo(
@@ -713,7 +718,7 @@ export default function MatchDetailScreen() {
       </View>
     </ScrollView>
 
-    {!isCompleted && (
+    {!isCompleted && canUseChat && (
       <Pressable
         style={[styles.chatFab, { bottom: 24 + insets.bottom }]}
         onPress={() => router.push({ pathname: '/match/chat', params: { id: match.id } })}

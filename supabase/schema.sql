@@ -145,9 +145,42 @@ CREATE POLICY "attendees_insert_own" ON public.match_attendees FOR INSERT WITH C
 CREATE POLICY "attendees_update_own" ON public.match_attendees FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "attendees_delete_own" ON public.match_attendees FOR DELETE USING (auth.uid() = user_id);
 
--- Messages
-CREATE POLICY "messages_select_all" ON public.messages FOR SELECT USING (true);
-CREATE POLICY "messages_insert_auth" ON public.messages FOR INSERT WITH CHECK (auth.uid() = sender_id OR sender_id IS NULL);
+-- Messages (lecture/écriture : organisateur + inscrits present/maybe/waitlist/pending)
+CREATE OR REPLACE FUNCTION public.can_access_match_chat(p_match_id UUID, p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    p_user_id IS NOT NULL
+    AND (
+      EXISTS (
+        SELECT 1
+        FROM public.matches m
+        WHERE m.id = p_match_id
+          AND m.organizer_id = p_user_id
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM public.match_attendees ma
+        WHERE ma.match_id = p_match_id
+          AND ma.user_id = p_user_id
+          AND ma.status IN ('present', 'maybe', 'waitlist', 'pending')
+      )
+    );
+$$;
+
+CREATE POLICY "messages_select_participants" ON public.messages
+  FOR SELECT
+  USING (public.can_access_match_chat(match_id, auth.uid()));
+CREATE POLICY "messages_insert_participants" ON public.messages
+  FOR INSERT
+  WITH CHECK (
+    public.can_access_match_chat(match_id, auth.uid())
+    AND (auth.uid() = sender_id OR sender_id IS NULL)
+  );
 
 -- Notifications
 CREATE POLICY "notifications_select_own" ON public.notifications FOR SELECT USING (auth.uid() = user_id);

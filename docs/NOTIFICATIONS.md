@@ -15,6 +15,7 @@ Référence des actions qui créent une entrée dans `public.notifications` (in-
 | Insertion app | `services/notifications.ts` → `createNotification()` | Crée une notif depuis le client |
 | Push Expo | Trigger SQL `trg_send_push_for_notification` | Envoie un push après chaque `INSERT` (migration `017`, cooldown chat dans `021`) |
 | Temps réel | `subscribeToNotifications()` dans `services/notifications.ts` | Rafraîchit la liste in-app via Supabase Realtime |
+| Accès chat | `can_access_match_chat()` (migration `042`) + `canAccessMatchChat()` | Organisateur + inscrits `present` / `maybe` / `waitlist` / `pending` |
 | Types TypeScript | `types/index.ts` → `Notification['type']` | Union des types supportés |
 | Écran liste | `app/notifications/index.tsx` | Filtres lu/non lu, pagination au scroll, « Tout lire » |
 | Token push | `services/push.ts` → `registerPushToken()` | Enregistre `profiles.push_token` |

@@ -2,6 +2,22 @@ import { AttendanceStatus, Match } from '@/types';
 
 type MatchAttendanceRules = Pick<Match, 'attendees' | 'maxPlayers' | 'status' | 'recruitmentClosed'>;
 
+const CHAT_PARTICIPANT_STATUSES: AttendanceStatus[] = ['present', 'maybe', 'waitlist', 'pending'];
+
+export function canAccessMatchChat(
+  match: Pick<Match, 'organizerId' | 'attendees'>,
+  userId: string | undefined
+): boolean {
+  if (!userId) return false;
+  if (match.organizerId === userId) return true;
+  const mine = match.attendees.find((a) => a.userId === userId);
+  return Boolean(mine && CHAT_PARTICIPANT_STATUSES.includes(mine.status));
+}
+
+export function getMatchChatAccessDeniedMessage(): string {
+  return 'Le chat est réservé aux participants du match (présents, invités, liste d\'attente).';
+}
+
 export function countPresentAttendees(
   attendees: { status: AttendanceStatus }[]
 ): number {

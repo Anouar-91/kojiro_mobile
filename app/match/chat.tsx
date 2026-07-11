@@ -16,7 +16,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChatBubble } from '@/components/chat/ChatComponents';
-import { Colors, Spacing } from '@/constants/theme';
+import { Button } from '@/components/ui/Button';
+import { Colors, Spacing, Typography } from '@/constants/theme';
 import {
   markChatNotificationsRead,
   markChatRead,
@@ -35,6 +36,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { useProfileStore } from '@/store/profileStore';
 import { ChatMessage, User } from '@/types';
+import { canAccessMatchChat, getMatchChatAccessDeniedMessage } from '@/utils/matchAttendance';
 import { openUserProfile } from '@/utils/profileNavigation';
 
 export default function MatchChatScreen() {
@@ -42,6 +44,8 @@ export default function MatchChatScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const match = useMatchStore((s) => s.getMatch(id ?? ''));
+  const refreshMatch = useMatchStore((s) => s.refreshMatch);
+  const [matchLoading, setMatchLoading] = useState(!match);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [senders, setSenders] = useState<Record<string, User>>({});
   const [input, setInput] = useState('');
@@ -60,6 +64,30 @@ export default function MatchChatScreen() {
   const hasMoreOlderRef = useRef(false);
   const canAutoLoadOlderRef = useRef(false);
   const insets = useSafeAreaInsets();
+
+  const canUseChat = useMemo(
+    () => (match && user ? canAccessMatchChat(match, user.id) : false),
+    [match, user?.id]
+  );
+
+  useEffect(() => {
+    if (!id || match) {
+      setMatchLoading(false);
+      return;
+    }
+
+    let active = true;
+    setMatchLoading(true);
+    refreshMatch(id)
+      .catch(() => {})
+      .finally(() => {
+        if (active) setMatchLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [id, match, refreshMatch]);
 
   const displayMessages = useMemo(() => [...messages].reverse(), [messages]);
 
@@ -149,7 +177,7 @@ export default function MatchChatScreen() {
   }, [match, user, fetchNotifications]);
 
   useEffect(() => {
-    if (!match) return;
+    if (!match || !canUseChat) return;
 
     setActiveChatMatchId(match.id);
     setSuppressChatBannerMatchId(match.id);
@@ -159,10 +187,13 @@ export default function MatchChatScreen() {
       setActiveChatMatchId(null);
       setSuppressChatBannerMatchId(null);
     };
-  }, [match?.id, syncRead]);
+  }, [match?.id, syncRead, canUseChat]);
 
   useEffect(() => {
-    if (!match) return;
+    if (!match || !canUseChat) {
+      setLoading(false);
+      return;
+    }
 
     let active = true;
     loadedSenderIdsRef.current.clear();
@@ -194,7 +225,7 @@ export default function MatchChatScreen() {
       active = false;
       unsubscribe();
     };
-  }, [match, user, syncRead, ensureSendersLoaded]);
+  }, [match, user, syncRead, ensureSendersLoaded, canUseChat]);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -253,10 +284,29 @@ export default function MatchChatScreen() {
     </View>
   ) : null;
 
-  if (loading) {
+  if (matchLoading || loading) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator color={Colors.primary} />
+      </View>
+    );
+  }
+
+  if (!match) {
+    return (
+      <View style={styles.blocked}>
+        <Text style={styles.blockedTitle}>Match introuvable</Text>
+        <Button title="Retour" onPress={() => router.back()} variant="outline" />
+      </View>
+    );
+  }
+
+  if (!canUseChat) {
+    return (
+      <View style={styles.blocked}>
+        <Text style={styles.blockedTitle}>Chat indisponible</Text>
+        <Text style={styles.blockedText}>{getMatchChatAccessDeniedMessage()}</Text>
+        <Button title="Retour au match" onPress={() => router.back()} variant="outline" />
       </View>
     );
   }
@@ -333,6 +383,16 @@ export default function MatchChatScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
+  blocked: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.background,
+    padding: Spacing.xxl,
+    gap: Spacing.lg,
+  },
+  blockedTitle: { ...Typography.h3, color: Colors.text, textAlign: 'center' },
+  blockedText: { ...Typography.body, color: Colors.textMuted, textAlign: 'center' },
   list: { flex: 1 },
   listContent: { paddingHorizontal: Spacing.lg },
   listContentEmpty: { flexGrow: 1, justifyContent: 'center' },
