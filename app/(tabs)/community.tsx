@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { fetchFriendsLeaderboard } from '@/services/leaderboard';
+import { fetchFriendSuggestions, FriendSuggestion } from '@/services/friendSuggestions';
 import { searchProfiles } from '@/services/profiles';
 import { fetchSocialPosts, subscribeToSocialPosts } from '@/services/social';
 import { getFriendshipState } from '@/services/friends';
@@ -45,6 +46,8 @@ export default function CommunityScreen() {
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [searching, setSearching] = useState(false);
+  const [suggestions, setSuggestions] = useState<FriendSuggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   const friends = friendIds
     .map((id) => getProfile(id))
@@ -88,30 +91,52 @@ export default function CommunityScreen() {
     }
   }, []);
 
+  const loadSuggestions = useCallback(async () => {
+    if (!user) return;
+    setLoadingSuggestions(true);
+    try {
+      const friendNames = Object.fromEntries(
+        friendIds
+          .map((id) => {
+            const profile = getProfile(id);
+            return profile ? ([id, profile.name] as const) : null;
+          })
+          .filter(Boolean) as [string, string][]
+      );
+      setSuggestions(
+        await fetchFriendSuggestions(user, friendIds, friendRequests, friendNames)
+      );
+    } catch {
+      setSuggestions([]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }, [user, friendIds, friendRequests, getProfile]);
+
   useEffect(() => {
     if (tab !== 'players') return;
 
     const q = search.trim();
-    if (q.length < 2) {
-      setSearchResults([]);
-      setSearching(false);
-      return;
+    if (q.length >= 2) {
+      setSearching(true);
+      const timer = setTimeout(async () => {
+        try {
+          const results = await searchProfiles(q);
+          setSearchResults(results.filter((p) => p.id !== user?.id));
+        } catch {
+          setSearchResults([]);
+        } finally {
+          setSearching(false);
+        }
+      }, 350);
+
+      return () => clearTimeout(timer);
     }
 
-    setSearching(true);
-    const timer = setTimeout(async () => {
-      try {
-        const results = await searchProfiles(q);
-        setSearchResults(results.filter((p) => p.id !== user?.id));
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setSearching(false);
-      }
-    }, 350);
-
-    return () => clearTimeout(timer);
-  }, [search, tab, user?.id]);
+    setSearchResults([]);
+    setSearching(false);
+    loadSuggestions();
+  }, [search, tab, user?.id, loadSuggestions]);
 
   useEffect(() => {
     if (user) fetchFriends(user.id);
@@ -281,41 +306,86 @@ export default function CommunityScreen() {
 
         {tab === 'players' && (
           <>
+            {search.trim().length < 2 && (
+              <>
+                <SectionHeader title="Suggestions pour toi" />
+                {loadingSuggestions ? (
+                  <ActivityIndicator color={Colors.primary} style={styles.loader} />
+                ) : suggestions.length === 0 ? (
+                  <Text style={styles.hint}>
+                    Aucune suggestion pour le moment. Complète ta ville dans ton profil pour
+                    découvrir des joueurs près de chez toi.
+                  </Text>
+                ) : (
+                  suggestions.map(({ user: player, label }) => {
+                    const state = user
+                      ? getFriendshipState(user.id, player.id, friendRequests)
+                      : 'none';
+                    const request = user
+                      ? friendRequests.find(
+                          (r) =>
+                            (r.fromUserId === user.id && r.toUserId === player.id) ||
+                            (r.fromUserId === player.id && r.toUserId === user.id)
+                        )
+                      : undefined;
+                    return (
+                      <PlayerListItem
+                        key={player.id}
+                        user={player}
+                        subtitle={label}
+                        distance={player.city}
+                        friendState={state}
+                        onPress={() => openUserProfile(router, player.id)}
+                        onAdd={() => handleAddFriend(player)}
+                        onCancel={
+                          state === 'pending_sent' && request
+                            ? () => handleCancelRequest(request.id, player.name)
+                            : undefined
+                        }
+                      />
+                    );
+                  })
+                )}
+              </>
+            )}
+
             <SectionHeader title="Rechercher un joueur" />
-            {search.trim().length < 2 ? (
-              <Text style={styles.hint}>
-                Tape au moins 2 caractères (nom, ville ou email) pour trouver un joueur à ajouter.
-              </Text>
-            ) : searching ? (
-              <ActivityIndicator color={Colors.primary} style={styles.loader} />
-            ) : searchResults.length === 0 ? (
-              <Text style={styles.empty}>Aucun joueur trouvé pour « {search} »</Text>
+            {search.trim().length >= 2 ? (
+              searching ? (
+                <ActivityIndicator color={Colors.primary} style={styles.loader} />
+              ) : searchResults.length === 0 ? (
+                <Text style={styles.empty}>Aucun joueur trouvé pour « {search} »</Text>
+              ) : (
+                searchResults.map((player) => {
+                  const state = user ? getFriendshipState(user.id, player.id, friendRequests) : 'none';
+                  const request = user
+                    ? friendRequests.find(
+                        (r) =>
+                          (r.fromUserId === user.id && r.toUserId === player.id) ||
+                          (r.fromUserId === player.id && r.toUserId === user.id)
+                      )
+                    : undefined;
+                  return (
+                    <PlayerListItem
+                      key={player.id}
+                      user={player}
+                      distance={player.city}
+                      friendState={state}
+                      onPress={() => openUserProfile(router, player.id)}
+                      onAdd={() => handleAddFriend(player)}
+                      onCancel={
+                        state === 'pending_sent' && request
+                          ? () => handleCancelRequest(request.id, player.name)
+                          : undefined
+                      }
+                    />
+                  );
+                })
+              )
             ) : (
-              searchResults.map((player) => {
-                const state = user ? getFriendshipState(user.id, player.id, friendRequests) : 'none';
-                const request = user
-                  ? friendRequests.find(
-                      (r) =>
-                        (r.fromUserId === user.id && r.toUserId === player.id) ||
-                        (r.fromUserId === player.id && r.toUserId === user.id)
-                    )
-                  : undefined;
-                return (
-                <PlayerListItem
-                  key={player.id}
-                  user={player}
-                  distance={player.city}
-                  friendState={state}
-                  onPress={() => openUserProfile(router, player.id)}
-                  onAdd={() => handleAddFriend(player)}
-                  onCancel={
-                    state === 'pending_sent' && request
-                      ? () => handleCancelRequest(request.id, player.name)
-                      : undefined
-                  }
-                />
-                );
-              })
+              <Text style={styles.hint}>
+                Tape au moins 2 caractères (nom, ville ou email) pour chercher un joueur précis.
+              </Text>
             )}
           </>
         )}

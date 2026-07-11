@@ -46,6 +46,7 @@ interface PlayerListItemProps {
   rank?: number;
   score?: number;
   distance?: string;
+  subtitle?: string;
   friendState?: 'none' | 'friends' | 'pending_sent' | 'pending_received';
   onPress?: () => void;
   onAdd?: () => void;
@@ -61,6 +62,7 @@ export function PlayerListItem({
   rank,
   score,
   distance,
+  subtitle,
   friendState = 'none',
   onPress,
   onAdd,
@@ -76,6 +78,7 @@ export function PlayerListItem({
       <Avatar uri={user.avatar} size={44} name={user.name} />
       <View style={styles.listInfo}>
         <Text style={styles.listName}>{user.name}</Text>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         <View style={styles.listMeta}>
           <Ionicons name="star" size={12} color={Colors.warning} />
           <Text style={styles.rating}>{Number(user.stats.averageRating).toFixed(1)}</Text>
@@ -240,6 +243,11 @@ const styles = StyleSheet.create({
     ...Typography.bodyBold,
     color: Colors.text,
     fontSize: 15,
+  },
+  subtitle: {
+    ...Typography.small,
+    color: Colors.primary,
+    marginTop: 2,
   },
   listMeta: {
     flexDirection: 'row',
