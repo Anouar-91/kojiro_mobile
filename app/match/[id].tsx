@@ -19,6 +19,7 @@ import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useMatchChatUnread } from '@/hooks/useMatchChatUnread';
 import { closeMatchRecruitment, reopenMatchRecruitment } from '@/services/matches';
 import { assignMatchCaptains, fetchMatchComposition, getTeamPlayerIds } from '@/services/composition';
+import { reopenMatchStats } from '@/services/matchStats';
 import { createNotification } from '@/services/notifications';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
@@ -68,6 +69,7 @@ export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const refreshProfile = useAuthStore((s) => s.refreshProfile);
   const match = useMatchStore((s) => s.getMatch(id ?? ''));
   const updateAttendance = useMatchStore((s) => s.updateAttendance);
   const removeAttendeeByOrganizer = useMatchStore((s) => s.removeAttendeeByOrganizer);
@@ -222,6 +224,31 @@ export default function MatchDetailScreen() {
     } catch (e) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de quitter la liste');
     }
+  };
+
+  const handleReopenStats = () => {
+    Alert.alert(
+      'Rouvrir les stats',
+      'Les stats déjà saisies seront conservées pour modification. Les joueurs inscrits recevront une notification et leurs profils seront recalculés temporairement.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Rouvrir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await reopenMatchStats(match.id);
+              await fetchMatches(user?.id);
+              await fetchProfiles();
+              await refreshProfile();
+              router.push({ pathname: '/match/stats', params: { id: match.id } });
+            } catch (e) {
+              Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de rouvrir les stats');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const canManageRoster = canOrganizerManageRoster(match, isOrganizer);
@@ -658,6 +685,15 @@ export default function MatchDetailScreen() {
             onPress={() => router.push({ pathname: '/match/recap', params: { id: match.id } })}
             icon="document-text-outline"
             fullWidth
+          />
+        )}
+        {isCompleted && isOrganizer && (
+          <Button
+            title="Rouvrir les stats"
+            onPress={handleReopenStats}
+            icon="refresh-outline"
+            fullWidth
+            variant="outline"
           />
         )}
         {!isCompleted && (

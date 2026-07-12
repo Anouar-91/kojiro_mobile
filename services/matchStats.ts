@@ -1,9 +1,12 @@
+import { guestPlayerId, parseGuestPlayerId } from '@/utils/guestAttendees';
 import { supabase } from '@/lib/supabase';
 import {
   CaptainPlayerStatInput,
   DEFAULT_DEFENSIVE_RATING,
   DEFAULT_FAIR_PLAY_RATING,
   FinalizePlayerStat,
+  MatchMvpTally,
+  MatchMvpVote,
   MatchStatsState,
   RosterEntry,
 } from '@/types/matchStats';
@@ -56,13 +59,15 @@ function mapStatsState(raw: Record<string, unknown>): MatchStatsState {
       const vote = v as Record<string, unknown>;
       return {
         voterId: vote.voterId as string,
-        votedForId: vote.votedForId as string,
+        votedForId: (vote.votedForId as string) ?? null,
+        votedForAttendeeId: (vote.votedForAttendeeId as string) ?? null,
       };
     }),
     mvpTally: ((raw.mvpTally as unknown[]) ?? []).map((t) => {
       const tally = t as Record<string, unknown>;
       return {
-        userId: tally.userId as string,
+        userId: (tally.userId as string) ?? null,
+        attendeeId: (tally.attendeeId as string) ?? null,
         votes: Number(tally.votes),
       };
     }),
@@ -112,15 +117,17 @@ export async function submitMyMatchStats(
   matchId: string,
   goals: number,
   assists: number,
-  mvpUserId: string | null,
+  mvpParticipantKey: string | null,
   defRating: number = DEFAULT_DEFENSIVE_RATING,
   fairPlay: number = DEFAULT_FAIR_PLAY_RATING
 ): Promise<void> {
+  const mvp = parseMvpParticipantKey(mvpParticipantKey);
   const { error } = await supabase.rpc('submit_my_match_stats', {
     p_match_id: matchId,
     p_goals: goals,
     p_assists: assists,
-    p_mvp_user_id: mvpUserId,
+    p_mvp_user_id: mvp.userId ?? null,
+    p_mvp_attendee_id: mvp.attendeeId ?? null,
     p_def_rating: defRating,
     p_fair_play: fairPlay,
   });
@@ -131,8 +138,9 @@ export async function captainSaveTeamStats(
   matchId: string,
   teamSide: 'A' | 'B',
   players: CaptainPlayerStatInput[],
-  mvpUserId: string | null
+  mvpParticipantKey: string | null
 ): Promise<void> {
+  const mvp = parseMvpParticipantKey(mvpParticipantKey);
   const { error } = await supabase.rpc('captain_save_team_stats', {
     p_match_id: matchId,
     p_team_side: teamSide,
@@ -144,7 +152,8 @@ export async function captainSaveTeamStats(
       def_rating: p.defRating,
       fair_play: p.fairPlay,
     })),
-    p_mvp_user_id: mvpUserId,
+    p_mvp_user_id: mvp.userId ?? null,
+    p_mvp_attendee_id: mvp.attendeeId ?? null,
   });
   if (error) throw new Error(error.message);
 }
@@ -152,8 +161,9 @@ export async function captainSaveTeamStats(
 export async function finalizeMatchStats(
   matchId: string,
   playerStats: FinalizePlayerStat[],
-  mvpUserId?: string | null
+  mvpParticipantKey?: string | null
 ): Promise<void> {
+  const mvp = parseMvpParticipantKey(mvpParticipantKey ?? null);
   const { error } = await supabase.rpc('finalize_match_stats', {
     p_match_id: matchId,
     p_player_stats: playerStats.map((p) => ({
@@ -165,9 +175,73 @@ export async function finalizeMatchStats(
       def_rating: p.defRating,
       fair_play: p.fairPlay,
     })),
-    p_mvp_user_id: mvpUserId ?? null,
+    p_mvp_user_id: mvp.userId ?? null,
+    p_mvp_attendee_id: mvp.attendeeId ?? null,
   });
   if (error) throw new Error(error.message);
+}
+
+export async function reopenMatchStats(matchId: string): Promise<void> {
+  const { error } = await supabase.rpc('reopen_match_stats', { p_match_id: matchId });
+  if (error) throw new Error(error.message);
+}
+
+export function subscribeToMatchStats(matchId: string, onChange: () => void): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const debounced = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(onChange, 400);
+  };
+
+  const channel = supabase
+    .channel(`realtime:match_stats:${matchId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'match_stat_entries', filter: `match_id=eq.${matchId}` },
+      debounced
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'match_mvp_votes', filter: `match_id=eq.${matchId}` },
+      debounced
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'match_team_stat_validations', filter: `match_id=eq.${matchId}` },
+      debounced
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${matchId}` },
+      debounced
+    )
+    .subscribe();
+
+  return () => {
+    if (timer) clearTimeout(timer);
+    supabase.removeChannel(channel);
+  };
+}
+
+export function parseMvpParticipantKey(
+  key: string | null
+): { userId?: string; attendeeId?: string } {
+  if (!key) return {};
+  const attendeeId = parseGuestPlayerId(key);
+  if (attendeeId) return { attendeeId };
+  return { userId: key };
+}
+
+export function mvpVoteTargetKey(vote: MatchMvpVote): string | null {
+  if (vote.votedForId) return vote.votedForId;
+  if (vote.votedForAttendeeId) return guestPlayerId(vote.votedForAttendeeId);
+  return null;
+}
+
+export function mvpTallyTargetKey(tally: MatchMvpTally): string | null {
+  if (tally.userId) return tally.userId;
+  if (tally.attendeeId) return guestPlayerId(tally.attendeeId);
+  return null;
 }
 
 export function getParticipantKey(entry: { userId: string | null; attendeeId: string | null }): string {
@@ -242,9 +316,8 @@ export function getMvpCandidates(
   entries: MatchStatsState['entries'],
   winningSide: MatchStatsState['winningSide']
 ): MatchStatsState['entries'] {
-  const registered = entries.filter((e) => e.userId && !e.isGuest);
-  if (winningSide === 'draw') return registered;
-  return registered.filter((e) => e.teamSide === winningSide);
+  if (winningSide === 'draw') return entries;
+  return entries.filter((e) => e.teamSide === winningSide);
 }
 
 export function buildFinalizeStatsFromEntries(

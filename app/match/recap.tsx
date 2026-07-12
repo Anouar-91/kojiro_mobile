@@ -1,18 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PitchFormationReadOnly } from '@/components/match/PitchFormation';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { StatIcon } from '@/components/ui/StatIcon';
 import { ProfileStatIconKey } from '@/constants/profileIcons';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { fetchMatchComposition, getSlotAssignments } from '@/services/composition';
 import { fetchMatchRecap } from '@/services/history';
 import { fetchMatchById } from '@/services/matches';
+import { reopenMatchStats } from '@/services/matchStats';
 import { useAuthStore } from '@/store/authStore';
+import { useMatchStore } from '@/store/matchStore';
 import { useProfileStore } from '@/store/profileStore';
 import { Match, MatchRecap, MatchRecapPlayer, User } from '@/types';
 import { MatchComposition } from '@/types/lineup';
@@ -167,11 +170,15 @@ export default function MatchRecapScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const refreshProfile = useAuthStore((s) => s.refreshProfile);
+  const fetchMatches = useMatchStore((s) => s.fetchMatches);
+  const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
   const getProfile = useProfileStore((s) => s.getProfile);
   const [recap, setRecap] = useState<MatchRecap | null>(null);
   const [match, setMatch] = useState<Match | null>(null);
   const [composition, setComposition] = useState<MatchComposition | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reopening, setReopening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -237,6 +244,36 @@ export default function MatchRecapScreen() {
   }
 
   const myStats = recap.players.find((p) => p.userId === user?.id);
+  const isOrganizer = match?.organizerId === user?.id;
+
+  const handleReopenStats = () => {
+    if (!match) return;
+    Alert.alert(
+      'Rouvrir les stats',
+      'Les stats déjà saisies seront conservées pour modification. Les joueurs inscrits recevront une notification et leurs profils seront recalculés temporairement.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Rouvrir',
+          style: 'destructive',
+          onPress: async () => {
+            setReopening(true);
+            try {
+              await reopenMatchStats(match.id);
+              await fetchMatches(user?.id);
+              await fetchProfiles();
+              await refreshProfile();
+              router.replace({ pathname: '/match/stats', params: { id: match.id } });
+            } catch (e) {
+              Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de rouvrir les stats');
+            } finally {
+              setReopening(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const playersForSide = (side: 'A' | 'B'): User[] => {
     if (!match || !composition) return [];
@@ -278,7 +315,12 @@ export default function MatchRecapScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Faits marquants</Text>
-        {recap.mvp && <HighlightRow icon="mvp" text={`MVP : ${recap.mvp.name}`} />}
+        {recap.mvp && (
+          <HighlightRow
+            icon="mvp"
+            text={`MVP : ${recap.mvp.name}${recap.mvp.isGuest ? ' (invité)' : ''}`}
+          />
+        )}
         <HighlightRow icon="goal" text={formatScorers(recap.players)} />
         <HighlightRow icon="assist" text={formatAssisters(recap.players)} />
       </View>
@@ -327,6 +369,17 @@ export default function MatchRecapScreen() {
           );
         })}
       </View>
+
+      {isOrganizer && (
+        <Button
+          title="Rouvrir les stats"
+          onPress={handleReopenStats}
+          loading={reopening}
+          icon="refresh-outline"
+          fullWidth
+          variant="outline"
+        />
+      )}
     </ScrollView>
   );
 }

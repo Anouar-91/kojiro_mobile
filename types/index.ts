@@ -204,7 +204,7 @@ export interface MatchRecap {
   teamAScore: number;
   teamBScore: number;
   players: MatchRecapPlayer[];
-  mvp: { userId: string; name: string } | null;
+  mvp: { userId: string; name: string; isGuest?: boolean } | null;
 }
 
 export type FriendRequestStatus = 'pending' | 'accepted' | 'declined';

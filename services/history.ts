@@ -85,7 +85,12 @@ export async function fetchMatchRecap(matchId: string): Promise<MatchRecap> {
     score: recap.score as string,
     teamAScore: Number(recap.teamAScore ?? 0),
     teamBScore: Number(recap.teamBScore ?? 0),
-    mvp: (recap.mvp as MatchRecap['mvp']) ?? null,
+    mvp: recap.mvp
+      ? {
+          ...(recap.mvp as MatchRecap['mvp']),
+          isGuest: Boolean((recap.mvp as Record<string, unknown>).isGuest),
+        }
+      : null,
     players: players.map((p) => ({
       userId: p.userId as string,
       name: p.name as string,

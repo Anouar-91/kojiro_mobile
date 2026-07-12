@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -24,7 +25,11 @@ import {
   finalizeMatchStats,
   getMvpCandidates,
   getParticipantKey,
+  GoalTotalsStatus,
+  mvpTallyTargetKey,
+  mvpVoteTargetKey,
   openMatchStats,
+  subscribeToMatchStats,
   submitMyMatchStats,
   updateMatchScore,
 } from '@/services/matchStats';
@@ -238,6 +243,110 @@ function EstimatedGlobalRating({
   );
 }
 
+function GoalTeamChip({
+  side,
+  entered,
+  target,
+  ok,
+}: {
+  side: TeamSide;
+  entered: number;
+  target: number;
+  ok: boolean;
+}) {
+  const delta = target - entered;
+  const statusColor = ok ? Colors.success : delta > 0 ? Colors.warning : Colors.error;
+  let detail: string;
+  if (ok) {
+    detail = 'OK';
+  } else if (delta > 0) {
+    detail = `−${delta}`;
+  } else {
+    detail = `+${Math.abs(delta)}`;
+  }
+
+  return (
+    <View style={[styles.goalChip, { borderColor: statusColor }]}>
+      <Text style={styles.goalChipSide}>Éq. {side}</Text>
+      <Text style={[styles.goalChipCount, { color: statusColor }]}>
+        {entered}/{target}
+      </Text>
+      <Text style={[styles.goalChipDelta, { color: statusColor }]}>{detail}</Text>
+    </View>
+  );
+}
+
+type SingleTeamGoalTotals = {
+  side: TeamSide;
+  entered: number;
+  target: number;
+  ok: boolean;
+};
+
+function GoalTotalsStickyBar({
+  goalTotals,
+  singleTeam,
+}: {
+  goalTotals?: GoalTotalsStatus;
+  singleTeam?: SingleTeamGoalTotals;
+}) {
+  const insets = useSafeAreaInsets();
+  const valid = singleTeam ? singleTeam.ok : (goalTotals?.valid ?? false);
+
+  return (
+    <View style={[styles.stickyBar, { paddingBottom: Math.max(insets.bottom, Spacing.sm) }]}>
+      <View
+        style={[
+          styles.stickyBarInner,
+          valid ? styles.stickyBarInnerOk : styles.stickyBarInnerWarn,
+        ]}
+      >
+        <View style={styles.stickyBarHeader}>
+          <Ionicons
+            name={valid ? 'checkmark-circle' : 'football-outline'}
+            size={18}
+            color={valid ? Colors.success : Colors.warning}
+          />
+          <Text style={[styles.stickyBarTitle, valid && styles.stickyBarTitleOk]}>
+            {valid
+              ? singleTeam
+                ? 'Buts de ton équipe — OK'
+                : 'Buts répartis — prêt à valider'
+              : singleTeam
+                ? 'Buts de ton équipe'
+                : 'Répartition des buts'}
+          </Text>
+        </View>
+        <View style={styles.stickyBarTeams}>
+          {singleTeam ? (
+            <GoalTeamChip
+              side={singleTeam.side}
+              entered={singleTeam.entered}
+              target={singleTeam.target}
+              ok={singleTeam.ok}
+            />
+          ) : goalTotals ? (
+            <>
+              <GoalTeamChip
+                side="A"
+                entered={goalTotals.teamA}
+                target={goalTotals.targetA}
+                ok={goalTotals.teamAOk}
+              />
+              <GoalTeamChip
+                side="B"
+                entered={goalTotals.teamB}
+                target={goalTotals.targetB}
+                ok={goalTotals.teamBOk}
+              />
+            </>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function GoalTotalsBanner({
   valid,
   messages,
@@ -288,13 +397,13 @@ function GoalTotalsBanner({
 
 function MvpPicker({
   candidates,
-  selectedId,
+  selectedKey,
   onSelect,
   getProfile,
 }: {
   candidates: MatchStatsState['entries'];
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
+  selectedKey: string | null;
+  onSelect: (key: string | null) => void;
   getProfile: (id: string) => { avatar?: string; name?: string } | undefined;
 }) {
   if (candidates.length === 0) {
@@ -304,18 +413,19 @@ function MvpPicker({
   return (
     <View style={styles.mvpList}>
       {candidates.map((c) => {
-        if (!c.userId) return null;
-        const profile = getProfile(c.userId);
-        const active = selectedId === c.userId;
+        const key = getParticipantKey(c);
+        if (!key) return null;
+        const profile = c.userId && !c.isGuest ? getProfile(c.userId) : undefined;
+        const active = selectedKey === key;
         return (
           <Pressable
-            key={c.userId}
+            key={key}
             style={[styles.mvpChip, active && styles.mvpChipActive]}
-            onPress={() => onSelect(active ? null : c.userId)}
+            onPress={() => onSelect(active ? null : key)}
           >
             <Avatar uri={profile?.avatar ?? ''} size={28} name={c.name} />
             <Text style={[styles.mvpChipText, active && styles.mvpChipTextActive]} numberOfLines={1}>
-              {c.name}
+              {c.name}{c.isGuest ? ' (invité)' : ''}
             </Text>
           </Pressable>
         );
@@ -356,6 +466,102 @@ export default function MatchStatsScreen() {
   const [finalStats, setFinalStats] = useState<Record<string, EditableStat>>({});
   const [finalMvpId, setFinalMvpId] = useState<string | null>(null);
 
+  const dirtyMyStatsRef = useRef(false);
+  const dirtyMyMvpRef = useRef(false);
+  const dirtyCaptainKeysRef = useRef(new Set<string>());
+  const dirtyCaptainMvpRef = useRef(false);
+  const dirtyFinalKeysRef = useRef(new Set<string>());
+  const dirtyFinalMvpRef = useRef(false);
+  const savingRef = useRef(false);
+
+  useEffect(() => {
+    savingRef.current = saving;
+  }, [saving]);
+
+  const applyStatsState = useCallback(
+    (state: MatchStatsState) => {
+      setStatsState(state);
+
+      const myEntry = state.entries.find((e) => e.userId === user?.id);
+      if (myEntry && !dirtyMyStatsRef.current) {
+        setMyGoals(myEntry.selfGoals ?? myEntry.proposedGoals);
+        setMyAssists(myEntry.selfAssists ?? myEntry.proposedAssists);
+        setMyDefRating(myEntry.selfDefRating ?? myEntry.proposedDefRating);
+        setMyFairPlay(myEntry.selfFairPlay ?? myEntry.proposedFairPlay);
+      }
+
+      const myVote = state.mvpVotes.find((v) => v.voterId === user?.id);
+      const myVoteKey = myVote ? mvpVoteTargetKey(myVote) : null;
+      if (!dirtyMyMvpRef.current) {
+        setMyMvpId(myVoteKey);
+      }
+      if (!dirtyCaptainMvpRef.current) {
+        setCaptainMvpId(myVoteKey);
+      }
+
+      setCaptainStats((prev) => {
+        const next = { ...prev };
+        state.entries.forEach((e) => {
+          const key = getParticipantKey(e);
+          if (dirtyCaptainKeysRef.current.has(key)) return;
+          next[key] = {
+            goals: e.captainGoals ?? e.selfGoals ?? e.proposedGoals,
+            assists: e.captainAssists ?? e.selfAssists ?? e.proposedAssists,
+            defRating: e.captainDefRating ?? e.selfDefRating ?? e.proposedDefRating,
+            fairPlay: e.captainFairPlay ?? e.selfFairPlay ?? e.proposedFairPlay,
+          };
+        });
+        return next;
+      });
+
+      setFinalStats((prev) => {
+        const next = { ...prev };
+        state.entries.forEach((e) => {
+          const key = getParticipantKey(e);
+          if (dirtyFinalKeysRef.current.has(key)) return;
+          next[key] = {
+            goals: e.proposedGoals,
+            assists: e.proposedAssists,
+            defRating: e.proposedDefRating,
+            fairPlay: e.proposedFairPlay,
+          };
+        });
+        return next;
+      });
+
+      if (!dirtyFinalMvpRef.current) {
+        const topMvp = state.mvpTally[0] ? mvpTallyTargetKey(state.mvpTally[0]) : null;
+        setFinalMvpId(topMvp);
+      }
+    },
+    [user?.id]
+  );
+
+  const loadStats = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!id) return;
+      if (!options?.silent) setLoading(true);
+      try {
+        const state = await fetchMatchStatsState(id);
+        applyStatsState(state);
+      } catch (e) {
+        if (match?.status !== 'pending_stats') {
+          setStatsState(null);
+        } else if (!options?.silent) {
+          Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de charger les stats');
+        }
+      } finally {
+        if (!options?.silent) setLoading(false);
+      }
+    },
+    [id, user?.id, match?.status, applyStatsState]
+  );
+
+  const refreshStatsLive = useCallback(() => {
+    if (savingRef.current) return;
+    loadStats({ silent: true });
+  }, [loadStats]);
+
   useEffect(() => {
     if (!id) return;
     fetchMatchComposition(id)
@@ -381,58 +587,6 @@ export default function MatchStatsScreen() {
     };
   }, [composition, getProfile, statsState?.captainAId, statsState?.captainBId]);
 
-  const loadStats = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    try {
-      const state = await fetchMatchStatsState(id);
-      setStatsState(state);
-
-      const myEntry = state.entries.find((e) => e.userId === user?.id);
-      if (myEntry) {
-        setMyGoals(myEntry.selfGoals ?? myEntry.proposedGoals);
-        setMyAssists(myEntry.selfAssists ?? myEntry.proposedAssists);
-        setMyDefRating(myEntry.selfDefRating ?? myEntry.proposedDefRating);
-        setMyFairPlay(myEntry.selfFairPlay ?? myEntry.proposedFairPlay);
-      }
-
-      const myVote = state.mvpVotes.find((v) => v.voterId === user?.id);
-      setMyMvpId(myVote?.votedForId ?? null);
-      setCaptainMvpId(myVote?.votedForId ?? null);
-
-      const captainMap: Record<string, EditableStat> = {};
-      const finalMap: Record<string, EditableStat> = {};
-      state.entries.forEach((e) => {
-        const key = getParticipantKey(e);
-        captainMap[key] = {
-          goals: e.captainGoals ?? e.selfGoals ?? e.proposedGoals,
-          assists: e.captainAssists ?? e.selfAssists ?? e.proposedAssists,
-          defRating: e.captainDefRating ?? e.selfDefRating ?? e.proposedDefRating,
-          fairPlay: e.captainFairPlay ?? e.selfFairPlay ?? e.proposedFairPlay,
-        };
-        finalMap[key] = {
-          goals: e.proposedGoals,
-          assists: e.proposedAssists,
-          defRating: e.proposedDefRating,
-          fairPlay: e.proposedFairPlay,
-        };
-      });
-      setCaptainStats(captainMap);
-      setFinalStats(finalMap);
-
-      const topMvp = state.mvpTally[0]?.userId ?? null;
-      setFinalMvpId(topMvp);
-    } catch (e) {
-      if (match?.status !== 'pending_stats') {
-        setStatsState(null);
-      } else {
-        Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de charger les stats');
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [id, user?.id, match?.status]);
-
   useEffect(() => {
     if (match?.status === 'completed') {
       router.replace({ pathname: '/match/recap', params: { id: id ?? '' } });
@@ -445,6 +599,12 @@ export default function MatchStatsScreen() {
     }
   }, [match?.status, id, loadStats, router]);
 
+  useEffect(() => {
+    if (!id || match?.status !== 'pending_stats') return;
+    const unsubscribe = subscribeToMatchStats(id, refreshStatsLive);
+    return unsubscribe;
+  }, [id, match?.status, refreshStatsLive]);
+
   const isOrganizer = user?.id === match?.organizerId;
   const isPresent = isRegisteredPresent(match!, user?.id);
   const captainSide = statsState?.myCaptainSide ?? null;
@@ -453,6 +613,11 @@ export default function MatchStatsScreen() {
     if (!statsState) return [];
     return getMvpCandidates(statsState.entries, statsState.winningSide);
   }, [statsState]);
+
+  const myMvpCandidates = useMemo(
+    () => mvpCandidates.filter((c) => c.userId !== user?.id),
+    [mvpCandidates, user?.id]
+  );
 
   const goalTotals = useMemo(() => {
     if (!statsState) {
@@ -469,6 +634,27 @@ export default function MatchStatsScreen() {
       teamLabels
     );
   }, [finalStats, statsState, teamLabels]);
+
+  const captainGoalTotals = useMemo((): SingleTeamGoalTotals | null => {
+    if (!statsState || !captainSide) return null;
+    const entries = statsState.entries
+      .filter((e) => e.teamSide === captainSide)
+      .map((e) => {
+        const key = getParticipantKey(e);
+        const stat = captainStats[key];
+        return { teamSide: e.teamSide, goals: stat?.goals ?? 0 };
+      });
+    const totals = buildGoalTotalsStatus(
+      entries,
+      statsState.teamAScore ?? 0,
+      statsState.teamBScore ?? 0,
+      teamLabels
+    );
+    const entered = captainSide === 'A' ? totals.teamA : totals.teamB;
+    const target = captainSide === 'A' ? totals.targetA : totals.targetB;
+    const ok = captainSide === 'A' ? totals.teamAOk : totals.teamBOk;
+    return { side: captainSide, entered, target, ok };
+  }, [statsState, captainSide, captainStats, teamLabels]);
 
   const handleUpdateScore = async () => {
     if (!match) return;
@@ -539,7 +725,9 @@ export default function MatchStatsScreen() {
     setSaving(true);
     try {
       await submitMyMatchStats(match.id, myGoals, myAssists, myMvpId, myDefRating, myFairPlay);
-      await loadStats();
+      dirtyMyStatsRef.current = false;
+      dirtyMyMvpRef.current = false;
+      await loadStats({ silent: true });
       Alert.alert('Enregistré', 'Tes stats ont été envoyées.');
     } catch (e) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer');
@@ -567,7 +755,9 @@ export default function MatchStatsScreen() {
     setSaving(true);
     try {
       await captainSaveTeamStats(match.id, side, players, captainMvpId);
-      await loadStats();
+      teamEntries.forEach((e) => dirtyCaptainKeysRef.current.delete(getParticipantKey(e)));
+      dirtyCaptainMvpRef.current = false;
+      await loadStats({ silent: true });
       Alert.alert('Équipe validée', `Les stats de l'équipe ${side} ont été enregistrées.`);
     } catch (e) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer');
@@ -699,15 +889,64 @@ export default function MatchStatsScreen() {
   const teamBValidated = statsState.teamValidations.some((v) => v.teamSide === 'B');
 
   const updateCaptainStat = (key: string, patch: Partial<EditableStat>) => {
+    dirtyCaptainKeysRef.current.add(key);
     setCaptainStats((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   };
 
   const updateFinalStat = (key: string, patch: Partial<EditableStat>) => {
+    dirtyFinalKeysRef.current.add(key);
     setFinalStats((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   };
 
+  const updateMyGoals = (value: number) => {
+    dirtyMyStatsRef.current = true;
+    setMyGoals(value);
+  };
+
+  const updateMyAssists = (value: number) => {
+    dirtyMyStatsRef.current = true;
+    setMyAssists(value);
+  };
+
+  const updateMyDefRating = (value: number) => {
+    dirtyMyStatsRef.current = true;
+    setMyDefRating(value);
+  };
+
+  const updateMyFairPlay = (value: number) => {
+    dirtyMyStatsRef.current = true;
+    setMyFairPlay(value);
+  };
+
+  const updateMyMvp = (key: string | null) => {
+    dirtyMyMvpRef.current = true;
+    setMyMvpId(key);
+  };
+
+  const updateCaptainMvp = (key: string | null) => {
+    dirtyCaptainMvpRef.current = true;
+    setCaptainMvpId(key);
+  };
+
+  const updateFinalMvp = (key: string | null) => {
+    dirtyFinalMvpRef.current = true;
+    setFinalMvpId(key);
+  };
+
+  const showOrganizerStickyBar = isOrganizer;
+  const showCaptainStickyBar = captainSide != null && !isOrganizer;
+  const showGoalStickyBar = showOrganizerStickyBar || showCaptainStickyBar;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.content,
+          showGoalStickyBar && styles.contentWithStickyBar,
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
       <Text style={styles.title}>Stats du match</Text>
       <Text style={styles.subtitle}>{match.title}</Text>
 
@@ -760,16 +999,16 @@ export default function MatchStatsScreen() {
           <StatInputs
             goals={myGoals}
             assists={myAssists}
-            onGoalsChange={setMyGoals}
-            onAssistsChange={setMyAssists}
+            onGoalsChange={updateMyGoals}
+            onAssistsChange={updateMyAssists}
           />
-          <RatingPicker label="Note défensive" icon="defense" value={myDefRating} onChange={setMyDefRating} />
-          <RatingPicker label="Fair-play" icon="fairPlay" value={myFairPlay} onChange={setMyFairPlay} />
+          <RatingPicker label="Note défensive" icon="defense" value={myDefRating} onChange={updateMyDefRating} />
+          <RatingPicker label="Fair-play" icon="fairPlay" value={myFairPlay} onChange={updateMyFairPlay} />
           <Text style={styles.mvpLabel}>Vote MVP</Text>
           <MvpPicker
-            candidates={mvpCandidates}
-            selectedId={myMvpId}
-            onSelect={setMyMvpId}
+            candidates={myMvpCandidates}
+            selectedKey={myMvpId}
+            onSelect={updateMyMvp}
             getProfile={getProfile}
           />
           {myEntry.selfSubmittedAt && (
@@ -829,8 +1068,8 @@ export default function MatchStatsScreen() {
           <Text style={styles.mvpLabel}>Vote MVP</Text>
           <MvpPicker
             candidates={mvpCandidates}
-            selectedId={captainMvpId}
-            onSelect={setCaptainMvpId}
+            selectedKey={captainMvpId}
+            onSelect={updateCaptainMvp}
             getProfile={getProfile}
           />
           <Button
@@ -875,7 +1114,7 @@ export default function MatchStatsScreen() {
             const teamAScore = statsState.teamAScore ?? 0;
             const teamBScore = statsState.teamBScore ?? 0;
             const result = getResultForTeam(e.teamSide, teamAScore, teamBScore);
-            const isMvp = e.userId != null && e.userId === finalMvpId;
+            const isMvp = getParticipantKey(e) === finalMvpId;
             return (
               <View key={key} style={styles.playerCard}>
                 <View style={styles.playerHeader}>
@@ -917,15 +1156,16 @@ export default function MatchStatsScreen() {
           {statsState.mvpTally.length > 0 && (
             <Text style={styles.hint}>
               Votes : {statsState.mvpTally.map((t) => {
-                const name = statsState.entries.find((e) => e.userId === t.userId)?.name ?? '?';
+                const key = mvpTallyTargetKey(t);
+                const name = statsState.entries.find((e) => getParticipantKey(e) === key)?.name ?? '?';
                 return `${name} (${t.votes})`;
               }).join(', ')}
             </Text>
           )}
           <MvpPicker
             candidates={mvpCandidates}
-            selectedId={finalMvpId}
-            onSelect={setFinalMvpId}
+            selectedKey={finalMvpId}
+            onSelect={updateFinalMvp}
             getProfile={getProfile}
           />
 
@@ -945,13 +1185,22 @@ export default function MatchStatsScreen() {
           )}
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+      {showOrganizerStickyBar && <GoalTotalsStickyBar goalTotals={goalTotals} />}
+      {showCaptainStickyBar && captainGoalTotals && (
+        <GoalTotalsStickyBar singleTeam={captainGoalTotals} />
+      )}
+    </View>
   );
 }
 
+const STICKY_BAR_HEIGHT = 108;
+
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: Colors.background },
   container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: Spacing.xxl, paddingBottom: Spacing.xxxl },
+  contentWithStickyBar: { paddingBottom: Spacing.xxxl + STICKY_BAR_HEIGHT },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background, padding: Spacing.xxl },
   muted: { ...Typography.body, color: Colors.textMuted, textAlign: 'center' },
   title: { ...Typography.h2, color: Colors.text },
@@ -1066,6 +1315,47 @@ const styles = StyleSheet.create({
   totalsLineRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, marginTop: Spacing.xs },
   totalsLineText: { ...Typography.caption, color: Colors.warning, flex: 1 },
   totalsLineOk: { color: Colors.success },
+  stickyBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+    backgroundColor: Colors.background,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  stickyBarInner: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  stickyBarInnerWarn: {
+    backgroundColor: Colors.surface,
+    borderColor: Colors.warning,
+  },
+  stickyBarInnerOk: {
+    backgroundColor: Colors.primaryMuted,
+    borderColor: Colors.success,
+  },
+  stickyBarHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  stickyBarTitle: { ...Typography.caption, color: Colors.warning, fontWeight: '700', flex: 1 },
+  stickyBarTitleOk: { color: Colors.success },
+  stickyBarTeams: { flexDirection: 'row', gap: Spacing.sm },
+  goalChip: {
+    flex: 1,
+    alignItems: 'center',
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    backgroundColor: Colors.surfaceElevated,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
+  },
+  goalChipSide: { ...Typography.small, color: Colors.textMuted, marginBottom: 2 },
+  goalChipCount: { ...Typography.bodyBold, fontWeight: '800' },
+  goalChipDelta: { ...Typography.small, fontWeight: '700', marginTop: 2 },
   estimatedRatingRow: {
     flexDirection: 'row',
     alignItems: 'center',

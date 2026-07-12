@@ -37,11 +37,13 @@ export interface MatchTeamValidation {
 
 export interface MatchMvpVote {
   voterId: string;
-  votedForId: string;
+  votedForId: string | null;
+  votedForAttendeeId: string | null;
 }
 
 export interface MatchMvpTally {
-  userId: string;
+  userId: string | null;
+  attendeeId: string | null;
   votes: number;
 }
 
