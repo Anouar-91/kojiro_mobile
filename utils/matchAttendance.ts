@@ -149,6 +149,16 @@ export function canInvitePlayers(match: Pick<Match, 'status' | 'recruitmentClose
   return match.status === 'upcoming' && !match.recruitmentClosed;
 }
 
+export function canSuggestPlayers(
+  match: Pick<Match, 'status' | 'recruitmentClosed' | 'attendees' | 'organizerId'>,
+  userId: string | undefined
+): boolean {
+  if (!userId || userId === match.organizerId) return false;
+  if (!canInvitePlayers(match)) return false;
+  const mine = match.attendees.find((a) => a.userId === userId);
+  return Boolean(mine && CHAT_PARTICIPANT_STATUSES.includes(mine.status));
+}
+
 export function getAttendanceLockMessage(
   match: Pick<Match, 'status' | 'recruitmentClosed'>
 ): string {

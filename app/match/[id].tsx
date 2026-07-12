@@ -28,6 +28,12 @@ import { getUsersByAttendance, useProfileStore } from '@/store/profileStore';
 import { AttendanceStatus, Position, User } from '@/types';
 import { formatMatchDate, formatPrice, getMatchFormatDescription } from '@/utils/formatters';
 import {
+  approveMatchSuggestion,
+  fetchPendingSuggestions,
+  MatchInviteSuggestion,
+  rejectMatchSuggestion,
+} from '@/services/invites';
+import {
   canAddToRoster,
   canChangeToAbsent,
   canChangeToMaybe,
@@ -36,6 +42,7 @@ import {
   canJoinWaitlist,
   canAccessMatchChat,
   canManageRoster as canOrganizerManageRoster,
+  canSuggestPlayers,
   canUseFullAttendanceUI,
   canSetPresent,
   getAttendanceLockMessage,
@@ -87,6 +94,8 @@ export default function MatchDetailScreen() {
   const [savingCaptains, setSavingCaptains] = useState(false);
   const [guestModalVisible, setGuestModalVisible] = useState(false);
   const [savingSubstitutes, setSavingSubstitutes] = useState(false);
+  const [pendingSuggestions, setPendingSuggestions] = useState<MatchInviteSuggestion[]>([]);
+  const [resolvingSuggestionId, setResolvingSuggestionId] = useState<string | null>(null);
   const canUseChat = useMemo(
     () => (match && user ? canAccessMatchChat(match, user.id) : false),
     [match, user?.id]
@@ -148,6 +157,69 @@ export default function MatchDetailScreen() {
         });
     }, [match?.id])
   );
+
+  const loadPendingSuggestions = useCallback(async () => {
+    if (
+      !match ||
+      user?.id !== match.organizerId ||
+      match.status !== 'upcoming' ||
+      isRecruitmentClosed(match)
+    ) {
+      setPendingSuggestions([]);
+      return;
+    }
+    try {
+      const suggestions = await fetchPendingSuggestions(match.id);
+      setPendingSuggestions(suggestions);
+    } catch {
+      setPendingSuggestions([]);
+    }
+  }, [match, user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPendingSuggestions();
+    }, [loadPendingSuggestions])
+  );
+
+  const handleApproveSuggestion = async (suggestionId: string) => {
+    setResolvingSuggestionId(suggestionId);
+    try {
+      await approveMatchSuggestion(suggestionId);
+      await fetchMatches(user?.id);
+      await loadPendingSuggestions();
+      Alert.alert('Invitation envoyée', 'Le joueur a reçu une invitation au match.');
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'approuver');
+    } finally {
+      setResolvingSuggestionId(null);
+    }
+  };
+
+  const handleRejectSuggestion = (suggestionId: string, playerName: string) => {
+    Alert.alert(
+      'Refuser la suggestion',
+      `Refuser l'invitation de ${playerName} ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Refuser',
+          style: 'destructive',
+          onPress: async () => {
+            setResolvingSuggestionId(suggestionId);
+            try {
+              await rejectMatchSuggestion(suggestionId);
+              await loadPendingSuggestions();
+            } catch (e) {
+              Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de refuser');
+            } finally {
+              setResolvingSuggestionId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   if (!match) {
     return (
@@ -253,6 +325,7 @@ export default function MatchDetailScreen() {
 
   const canManageRoster = canOrganizerManageRoster(match, isOrganizer);
   const canAddPlayers = canAddToRoster(match, isOrganizer);
+  const canSuggest = canSuggestPlayers(match, user?.id);
   const canEditSubstitutes =
     isOrganizer && (match.status === 'upcoming' || match.status === 'live');
   const handleIncreaseSubstitutes = async (nextValue: number) => {
@@ -577,6 +650,43 @@ export default function MatchDetailScreen() {
         )}
       </View>
 
+      {isOrganizer && pendingSuggestions.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Suggestions d'invitation</Text>
+          {pendingSuggestions.map((suggestion) => {
+            const suggestedUser = getProfile(suggestion.suggestedUserId);
+            const suggester = getProfile(suggestion.suggestedByUserId);
+            const isResolving = resolvingSuggestionId === suggestion.id;
+            return (
+              <View key={suggestion.id} style={styles.suggestionRow}>
+                <View style={styles.suggestionInfo}>
+                  <Text style={styles.suggestionName}>{suggestedUser?.name ?? 'Joueur'}</Text>
+                  <Text style={styles.suggestionMeta}>
+                    Proposé par {suggester?.name ?? 'un participant'}
+                  </Text>
+                </View>
+                <View style={styles.suggestionActions}>
+                  <Pressable
+                    onPress={() => handleRejectSuggestion(suggestion.id, suggestedUser?.name ?? 'ce joueur')}
+                    disabled={isResolving}
+                    style={[styles.suggestionBtn, styles.suggestionReject]}
+                  >
+                    <Ionicons name="close" size={18} color={Colors.error} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleApproveSuggestion(suggestion.id)}
+                    disabled={isResolving}
+                    style={[styles.suggestionBtn, styles.suggestionApprove]}
+                  >
+                    <Ionicons name="checkmark" size={18} color={Colors.background} />
+                  </Pressable>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Participants</Text>
         {canManageRoster && (
@@ -735,6 +845,15 @@ export default function MatchDetailScreen() {
             />
           </>
         )}
+        {!isCompleted && canSuggest && (
+          <Button
+            title="Proposer un ami"
+            onPress={() => router.push({ pathname: '/match/invite', params: { id: match.id } })}
+            variant="outline"
+            icon="person-add-outline"
+            fullWidth
+          />
+        )}
         <AddGuestPlayerModal
           visible={guestModalVisible}
           onClose={() => setGuestModalVisible(false)}
@@ -814,6 +933,29 @@ const styles = StyleSheet.create({
   },
   waitlistText: { ...Typography.caption, color: Colors.primary, fontWeight: '600', flex: 1 },
   waitlistBtn: { marginBottom: Spacing.sm },
+  suggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.surfaceElevated,
+    gap: Spacing.md,
+  },
+  suggestionInfo: { flex: 1 },
+  suggestionName: { ...Typography.bodyBold, color: Colors.text, fontSize: 14 },
+  suggestionMeta: { ...Typography.caption, color: Colors.textMuted, marginTop: 2 },
+  suggestionActions: { flexDirection: 'row', gap: Spacing.sm },
+  suggestionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  suggestionReject: { backgroundColor: `${Colors.error}20` },
+  suggestionApprove: { backgroundColor: Colors.primary },
   actions: { paddingHorizontal: Spacing.xxl, gap: Spacing.md },
   chatFab: {
     position: 'absolute',

@@ -3,6 +3,7 @@ import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -13,6 +14,10 @@ import {
 
 import { ChipGroup } from '@/components/ui/Chip';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import {
+  approveMatchSuggestion,
+  rejectMatchSuggestion,
+} from '@/services/invites';
 import {
   fetchNotificationsPage,
   NOTIFICATIONS_PAGE_SIZE,
@@ -25,6 +30,7 @@ import { formatRelativeTime } from '@/utils/formatters';
 
 const NOTIF_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   match_invite: 'mail-open-outline',
+  match_invite_suggestion: 'hand-right-outline',
   match_waitlist: 'hourglass-outline',
   friend_request: 'person-add-outline',
   friend_match_created: 'football-outline',
@@ -54,7 +60,7 @@ function getNotificationRoute(notif: Notification): string | null {
   if (matchId && notif.type === 'match_stats') {
     return `/match/stats?id=${matchId}`;
   }
-  if (matchId && (notif.type === 'match_invite' || notif.type === 'match_reminder' || notif.type === 'team_assigned' || notif.type === 'match_waitlist' || notif.type === 'friend_match_created')) {
+  if (matchId && (notif.type === 'match_invite' || notif.type === 'match_invite_suggestion' || notif.type === 'match_reminder' || notif.type === 'team_assigned' || notif.type === 'match_waitlist' || notif.type === 'friend_match_created')) {
     return `/match/${matchId}`;
   }
   if (notif.type === 'tournament') return '/tournament';
@@ -69,6 +75,7 @@ export default function NotificationsScreen() {
   const userId = useAuthStore((s) => s.user?.id);
   const markRead = useMatchStore((s) => s.markNotificationRead);
   const markAllRead = useMatchStore((s) => s.markAllNotificationsRead);
+  const fetchMatches = useMatchStore((s) => s.fetchMatches);
   const unreadCount = useMatchStore((s) => s.unreadNotificationsCount);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -77,6 +84,7 @@ export default function NotificationsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [resolvingSuggestionId, setResolvingSuggestionId] = useState<string | null>(null);
 
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
@@ -240,7 +248,53 @@ export default function NotificationsScreen() {
     router.push(route as `/match/${string}`);
   };
 
-  const renderItem = ({ item: notif }: { item: Notification }) => (
+  const handleApproveSuggestion = async (notif: Notification) => {
+    const suggestionId = notif.data?.suggestionId;
+    if (!suggestionId) return;
+    setResolvingSuggestionId(suggestionId);
+    try {
+      await approveMatchSuggestion(suggestionId);
+      if (!notif.read) await markRead(notif.id);
+      setNotifications((prev) => prev.filter((n) => n.id !== notif.id));
+      await fetchMatches(userId);
+      Alert.alert('Invitation envoyée', 'Le joueur a reçu une invitation au match.');
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'approuver');
+    } finally {
+      setResolvingSuggestionId(null);
+    }
+  };
+
+  const handleRejectSuggestion = (notif: Notification) => {
+    const suggestionId = notif.data?.suggestionId;
+    if (!suggestionId) return;
+    Alert.alert('Refuser la suggestion', 'Refuser cette proposition d\'invitation ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Refuser',
+        style: 'destructive',
+        onPress: async () => {
+          setResolvingSuggestionId(suggestionId);
+          try {
+            await rejectMatchSuggestion(suggestionId);
+            if (!notif.read) await markRead(notif.id);
+            setNotifications((prev) => prev.filter((n) => n.id !== notif.id));
+          } catch (e) {
+            Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de refuser');
+          } finally {
+            setResolvingSuggestionId(null);
+          }
+        },
+      },
+    ]);
+  };
+
+  const renderItem = ({ item: notif }: { item: Notification }) => {
+    const suggestionId = notif.data?.suggestionId;
+    const isSuggestion = notif.type === 'match_invite_suggestion' && Boolean(suggestionId);
+    const isResolving = Boolean(suggestionId && resolvingSuggestionId === suggestionId);
+
+    return (
     <Pressable
       style={[styles.item, !notif.read && styles.unread]}
       onPress={() => handlePress(notif)}
@@ -256,10 +310,35 @@ export default function NotificationsScreen() {
         <Text style={[styles.title, !notif.read && styles.titleUnread]}>{notif.title}</Text>
         <Text style={styles.body}>{notif.body}</Text>
         <Text style={styles.time}>{formatRelativeTime(notif.createdAt)}</Text>
+        {isSuggestion && (
+          <View style={styles.suggestionActions}>
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                handleRejectSuggestion(notif);
+              }}
+              disabled={isResolving}
+              style={[styles.suggestionBtn, styles.suggestionReject]}
+            >
+              <Text style={styles.suggestionRejectText}>Refuser</Text>
+            </Pressable>
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                handleApproveSuggestion(notif);
+              }}
+              disabled={isResolving}
+              style={[styles.suggestionBtn, styles.suggestionApprove]}
+            >
+              <Text style={styles.suggestionApproveText}>Approuver</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
       {!notif.read && <View style={styles.dot} />}
     </Pressable>
-  );
+    );
+  };
 
   const listEmpty = () => {
     if (loading) {
@@ -357,5 +436,31 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: Colors.primary,
     marginTop: 6,
+  },
+  suggestionActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  suggestionBtn: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: 8,
+  },
+  suggestionReject: {
+    backgroundColor: `${Colors.error}20`,
+  },
+  suggestionApprove: {
+    backgroundColor: Colors.primary,
+  },
+  suggestionRejectText: {
+    ...Typography.caption,
+    color: Colors.error,
+    fontWeight: '600',
+  },
+  suggestionApproveText: {
+    ...Typography.caption,
+    color: Colors.background,
+    fontWeight: '600',
   },
 });
