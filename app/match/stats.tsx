@@ -39,6 +39,7 @@ import { getPresentUsersFromMatch, useProfileStore } from '@/store/profileStore'
 import {
   DEFAULT_DEFENSIVE_RATING,
   DEFAULT_FAIR_PLAY_RATING,
+  DEFAULT_GLOBAL_RATING,
   defaultEditableMatchStat,
   EditableMatchStat,
   MatchStatsState,
@@ -50,7 +51,6 @@ import {
   buildRosterFromPlayers,
   isRegisteredPresent,
 } from '@/utils/matchStatsRoster';
-import { computeMatchGlobalRating, getResultForTeam } from '@/utils/calculateMatchRating';
 
 type EditableStat = EditableMatchStat;
 
@@ -162,14 +162,49 @@ function RatingPicker({
 
 function formatSelfDeclarationHint(entry: MatchStatsState['entries'][0]): string {
   if (entry.selfSubmittedAt == null) {
-    return `Pas encore auto-déclaré · défense ${DEFAULT_DEFENSIVE_RATING}/5 · fair-play ${DEFAULT_FAIR_PLAY_RATING}/5 par défaut`;
+    return `Pas encore auto-déclaré · note globale ${DEFAULT_GLOBAL_RATING}/5 par défaut`;
   }
   return `Auto-déclaré : ${[
+    `note ${entry.selfGlobalRating ?? DEFAULT_GLOBAL_RATING}/5`,
     `${entry.selfGoals ?? 0} but(s)`,
     `${entry.selfAssists ?? 0} passe(s)`,
     `défense ${entry.selfDefRating ?? DEFAULT_DEFENSIVE_RATING}/5`,
     `fair-play ${entry.selfFairPlay ?? DEFAULT_FAIR_PLAY_RATING}/5`,
   ].join(' · ')}`;
+}
+
+function OptionalStatDetails({
+  defRating,
+  fairPlay,
+  onDefRatingChange,
+  onFairPlayChange,
+  compact,
+}: {
+  defRating: number;
+  fairPlay: number;
+  onDefRatingChange: (v: number) => void;
+  onFairPlayChange: (v: number) => void;
+  compact?: boolean;
+}) {
+  return (
+    <View style={styles.optionalDetails}>
+      <Text style={styles.optionalDetailsLabel}>Détails (optionnel)</Text>
+      <RatingPicker
+        label="Note défensive"
+        icon="defense"
+        value={defRating}
+        onChange={onDefRatingChange}
+        compact={compact}
+      />
+      <RatingPicker
+        label="Fair-play"
+        icon="fairPlay"
+        value={fairPlay}
+        onChange={onFairPlayChange}
+        compact={compact}
+      />
+    </View>
+  );
 }
 
 function StatInputs({
@@ -213,32 +248,6 @@ function StatInputs({
           maxLength={2}
         />
       </View>
-    </View>
-  );
-}
-
-function EstimatedGlobalRating({
-  result,
-  stat,
-  isMvp,
-}: {
-  result: ReturnType<typeof getResultForTeam>;
-  stat: EditableStat;
-  isMvp: boolean;
-}) {
-  const rating = computeMatchGlobalRating({
-    result,
-    goals: stat.goals,
-    assists: stat.assists,
-    mvp: isMvp,
-    defRating: stat.defRating,
-    fairPlay: stat.fairPlay,
-  });
-
-  return (
-    <View style={styles.estimatedRatingRow}>
-      <Text style={styles.estimatedRatingLabel}>Note globale estimée</Text>
-      <Text style={styles.estimatedRatingValue}>{rating.toFixed(1)}</Text>
     </View>
   );
 }
@@ -456,6 +465,7 @@ export default function MatchStatsScreen() {
 
   const [myGoals, setMyGoals] = useState(0);
   const [myAssists, setMyAssists] = useState(0);
+  const [myGlobalRating, setMyGlobalRating] = useState(DEFAULT_GLOBAL_RATING);
   const [myDefRating, setMyDefRating] = useState(DEFAULT_DEFENSIVE_RATING);
   const [myFairPlay, setMyFairPlay] = useState(DEFAULT_FAIR_PLAY_RATING);
   const [myMvpId, setMyMvpId] = useState<string | null>(null);
@@ -486,6 +496,7 @@ export default function MatchStatsScreen() {
       if (myEntry && !dirtyMyStatsRef.current) {
         setMyGoals(myEntry.selfGoals ?? myEntry.proposedGoals);
         setMyAssists(myEntry.selfAssists ?? myEntry.proposedAssists);
+        setMyGlobalRating(myEntry.selfGlobalRating ?? myEntry.proposedGlobalRating);
         setMyDefRating(myEntry.selfDefRating ?? myEntry.proposedDefRating);
         setMyFairPlay(myEntry.selfFairPlay ?? myEntry.proposedFairPlay);
       }
@@ -507,6 +518,7 @@ export default function MatchStatsScreen() {
           next[key] = {
             goals: e.captainGoals ?? e.selfGoals ?? e.proposedGoals,
             assists: e.captainAssists ?? e.selfAssists ?? e.proposedAssists,
+            globalRating: e.captainGlobalRating ?? e.selfGlobalRating ?? e.proposedGlobalRating,
             defRating: e.captainDefRating ?? e.selfDefRating ?? e.proposedDefRating,
             fairPlay: e.captainFairPlay ?? e.selfFairPlay ?? e.proposedFairPlay,
           };
@@ -522,6 +534,7 @@ export default function MatchStatsScreen() {
           next[key] = {
             goals: e.proposedGoals,
             assists: e.proposedAssists,
+            globalRating: e.proposedGlobalRating,
             defRating: e.proposedDefRating,
             fairPlay: e.proposedFairPlay,
           };
@@ -724,7 +737,7 @@ export default function MatchStatsScreen() {
     if (!match) return;
     setSaving(true);
     try {
-      await submitMyMatchStats(match.id, myGoals, myAssists, myMvpId, myDefRating, myFairPlay);
+      await submitMyMatchStats(match.id, myGoals, myAssists, myMvpId, myGlobalRating, myDefRating, myFairPlay);
       dirtyMyStatsRef.current = false;
       dirtyMyMvpRef.current = false;
       await loadStats({ silent: true });
@@ -747,6 +760,7 @@ export default function MatchStatsScreen() {
         attendeeId: e.attendeeId ?? undefined,
         goals: stat.goals,
         assists: stat.assists,
+        globalRating: stat.globalRating,
         defRating: stat.defRating,
         fairPlay: stat.fairPlay,
       };
@@ -787,6 +801,7 @@ export default function MatchStatsScreen() {
             team: e.teamSide,
             goals: stat.goals,
             assists: stat.assists,
+            globalRating: stat.globalRating,
             defRating: stat.defRating,
             fairPlay: stat.fairPlay,
           };
@@ -799,6 +814,7 @@ export default function MatchStatsScreen() {
           team: e.teamSide,
           goals: stat.goals,
           assists: stat.assists,
+          globalRating: stat.globalRating,
           defRating: stat.defRating,
           fairPlay: stat.fairPlay,
         };
@@ -898,6 +914,11 @@ export default function MatchStatsScreen() {
     setFinalStats((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   };
 
+  const updateMyGlobalRating = (value: number) => {
+    dirtyMyStatsRef.current = true;
+    setMyGlobalRating(value);
+  };
+
   const updateMyGoals = (value: number) => {
     dirtyMyStatsRef.current = true;
     setMyGoals(value);
@@ -993,17 +1014,27 @@ export default function MatchStatsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Mes stats</Text>
           <Text style={styles.hint}>
-            Indique tes buts, passes, tes notes défensive et fair-play, puis vote pour le MVP.
+            Commence par noter ta performance sur ce match, puis indique tes buts et passes si tu en as marqué.
             {isOrganizer ? ' Cette section n\'enregistre que tes stats — la finalisation du match se fait plus bas.' : ''}
           </Text>
+          <RatingPicker
+            label="Note globale du match"
+            icon="rating"
+            value={myGlobalRating}
+            onChange={updateMyGlobalRating}
+          />
           <StatInputs
             goals={myGoals}
             assists={myAssists}
             onGoalsChange={updateMyGoals}
             onAssistsChange={updateMyAssists}
           />
-          <RatingPicker label="Note défensive" icon="defense" value={myDefRating} onChange={updateMyDefRating} />
-          <RatingPicker label="Fair-play" icon="fairPlay" value={myFairPlay} onChange={updateMyFairPlay} />
+          <OptionalStatDetails
+            defRating={myDefRating}
+            fairPlay={myFairPlay}
+            onDefRatingChange={updateMyDefRating}
+            onFairPlayChange={updateMyFairPlay}
+          />
           <Text style={styles.mvpLabel}>Vote MVP</Text>
           <MvpPicker
             candidates={myMvpCandidates}
@@ -1022,7 +1053,7 @@ export default function MatchStatsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Capitaine — {teamLabels[`team${captainSide}` as 'teamA' | 'teamB']}</Text>
           <Text style={styles.hint}>
-            Vérifie les stats de ton équipe, corrige si besoin, puis valide.
+            Vérifie la note globale et les stats de ton équipe, corrige si besoin, puis valide.
           </Text>
           {captainTeamEntries.map((e) => {
             const key = getParticipantKey(e);
@@ -1041,6 +1072,13 @@ export default function MatchStatsScreen() {
                     <Text style={styles.selfHint}>{selfHint}</Text>
                   </View>
                 </View>
+                <RatingPicker
+                  label="Note globale"
+                  icon="rating"
+                  value={stat.globalRating}
+                  onChange={(g) => updateCaptainStat(key, { globalRating: g })}
+                  compact
+                />
                 <StatInputs
                   goals={stat.goals}
                   assists={stat.assists}
@@ -1048,18 +1086,11 @@ export default function MatchStatsScreen() {
                   onAssistsChange={(a) => updateCaptainStat(key, { assists: a })}
                   compact
                 />
-                <RatingPicker
-                  label="Note défensive"
-                  icon="defense"
-                  value={stat.defRating}
-                  onChange={(d) => updateCaptainStat(key, { defRating: d })}
-                  compact
-                />
-                <RatingPicker
-                  label="Fair-play"
-                  icon="fairPlay"
-                  value={stat.fairPlay}
-                  onChange={(f) => updateCaptainStat(key, { fairPlay: f })}
+                <OptionalStatDetails
+                  defRating={stat.defRating}
+                  fairPlay={stat.fairPlay}
+                  onDefRatingChange={(d) => updateCaptainStat(key, { defRating: d })}
+                  onFairPlayChange={(f) => updateCaptainStat(key, { fairPlay: f })}
                   compact
                 />
               </View>
@@ -1092,7 +1123,7 @@ export default function MatchStatsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Finalisation (organisateur)</Text>
           <Text style={styles.hint}>
-            Répartis les buts de chaque joueur (y compris les invités) pour qu&apos;ils correspondent au score du match, puis valide.
+            Ajuste la note globale de chaque joueur, répartis les buts pour correspondre au score, puis valide.
             Les stats des invités apparaissent dans le résumé mais ne modifient pas leur profil.
           </Text>
 
@@ -1111,10 +1142,6 @@ export default function MatchStatsScreen() {
           {statsState.entries.map((e) => {
             const key = getParticipantKey(e);
             const stat = finalStats[key] ?? defaultEditableMatchStat();
-            const teamAScore = statsState.teamAScore ?? 0;
-            const teamBScore = statsState.teamBScore ?? 0;
-            const result = getResultForTeam(e.teamSide, teamAScore, teamBScore);
-            const isMvp = getParticipantKey(e) === finalMvpId;
             return (
               <View key={key} style={styles.playerCard}>
                 <View style={styles.playerHeader}>
@@ -1122,6 +1149,13 @@ export default function MatchStatsScreen() {
                   <Text style={styles.playerName}>{e.name}</Text>
                   {e.isGuest && <Text style={styles.guestTag}>Invité</Text>}
                 </View>
+                <RatingPicker
+                  label="Note globale"
+                  icon="rating"
+                  value={stat.globalRating}
+                  onChange={(g) => updateFinalStat(key, { globalRating: g })}
+                  compact
+                />
                 <StatInputs
                   goals={stat.goals}
                   assists={stat.assists}
@@ -1129,25 +1163,16 @@ export default function MatchStatsScreen() {
                   onAssistsChange={(a) => updateFinalStat(key, { assists: a })}
                   compact
                 />
-                <RatingPicker
-                  label="Note défensive"
-                  icon="defense"
-                  value={stat.defRating}
-                  onChange={(d) => updateFinalStat(key, { defRating: d })}
+                <OptionalStatDetails
+                  defRating={stat.defRating}
+                  fairPlay={stat.fairPlay}
+                  onDefRatingChange={(d) => updateFinalStat(key, { defRating: d })}
+                  onFairPlayChange={(f) => updateFinalStat(key, { fairPlay: f })}
                   compact
                 />
-                <RatingPicker
-                  label="Fair-play"
-                  icon="fairPlay"
-                  value={stat.fairPlay}
-                  onChange={(f) => updateFinalStat(key, { fairPlay: f })}
-                  compact
-                />
-                {!e.isGuest && e.userId ? (
-                  <EstimatedGlobalRating result={result} stat={stat} isMvp={isMvp} />
-                ) : (
+                {e.isGuest || !e.userId ? (
                   <Text style={styles.guestStatsHint}>Stats visibles dans le résumé uniquement</Text>
-                )}
+                ) : null}
               </View>
             );
           })}
@@ -1367,6 +1392,18 @@ const styles = StyleSheet.create({
   },
   estimatedRatingLabel: { ...Typography.small, color: Colors.textMuted, fontWeight: '600' },
   estimatedRatingValue: { ...Typography.bodyBold, color: Colors.primary },
+  optionalDetails: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  optionalDetailsLabel: {
+    ...Typography.small,
+    color: Colors.textMuted,
+    fontWeight: '600',
+    marginBottom: Spacing.sm,
+  },
   blockedHint: {
     ...Typography.caption,
     color: Colors.textMuted,

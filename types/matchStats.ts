@@ -1,5 +1,8 @@
 import { TeamSide } from '@/types/lineup';
 
+/** Note globale par défaut (neutre) si non saisie */
+export const DEFAULT_GLOBAL_RATING = 3;
+
 /** Note défensive par défaut (neutre) si non saisie */
 export const DEFAULT_DEFENSIVE_RATING = 3;
 
@@ -13,16 +16,19 @@ export interface MatchStatEntry {
   teamSide: TeamSide;
   selfGoals: number | null;
   selfAssists: number | null;
+  selfGlobalRating: number | null;
   selfDefRating: number | null;
   selfFairPlay: number | null;
   selfSubmittedAt: string | null;
   captainGoals: number | null;
   captainAssists: number | null;
+  captainGlobalRating: number | null;
   captainDefRating: number | null;
   captainFairPlay: number | null;
   captainUpdatedAt: string | null;
   proposedGoals: number;
   proposedAssists: number;
+  proposedGlobalRating: number;
   proposedDefRating: number;
   proposedFairPlay: number;
   name: string;
@@ -75,6 +81,7 @@ export interface CaptainPlayerStatInput {
   attendeeId?: string;
   goals: number;
   assists: number;
+  globalRating: number;
   defRating: number;
   fairPlay: number;
 }
@@ -85,6 +92,7 @@ export interface FinalizePlayerStat {
   team: TeamSide;
   goals: number;
   assists: number;
+  globalRating: number;
   defRating: number;
   fairPlay: number;
 }
@@ -92,6 +100,7 @@ export interface FinalizePlayerStat {
 export interface EditableMatchStat {
   goals: number;
   assists: number;
+  globalRating: number;
   defRating: number;
   fairPlay: number;
 }
@@ -100,6 +109,7 @@ export function defaultEditableMatchStat(): EditableMatchStat {
   return {
     goals: 0,
     assists: 0,
+    globalRating: DEFAULT_GLOBAL_RATING,
     defRating: DEFAULT_DEFENSIVE_RATING,
     fairPlay: DEFAULT_FAIR_PLAY_RATING,
   };

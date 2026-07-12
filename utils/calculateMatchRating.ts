@@ -35,6 +35,12 @@ export function computeMatchGlobalRating(input: MatchRatingInput): number {
   return Math.round(clamp(raw, 1, 5) * 10) / 10;
 }
 
+/** XP gagné à la finalisation — aligné avec compute_match_xp_gain (SQL). */
+export function computeMatchXpGain(rating: number, mvp: boolean): number {
+  const clamped = clamp(rating, 1, 5);
+  return Math.max(0, 50 + Math.round((clamped - 3) * 15) + (mvp ? 25 : 0));
+}
+
 export function getResultForTeam(
   team: 'A' | 'B',
   teamAScore: number,

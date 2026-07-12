@@ -4,6 +4,7 @@ import {
   CaptainPlayerStatInput,
   DEFAULT_DEFENSIVE_RATING,
   DEFAULT_FAIR_PLAY_RATING,
+  DEFAULT_GLOBAL_RATING,
   FinalizePlayerStat,
   MatchMvpTally,
   MatchMvpVote,
@@ -31,16 +32,19 @@ function mapStatsState(raw: Record<string, unknown>): MatchStatsState {
         teamSide: entry.teamSide as MatchStatsState['entries'][0]['teamSide'],
         selfGoals: entry.selfGoals != null ? Number(entry.selfGoals) : null,
         selfAssists: entry.selfAssists != null ? Number(entry.selfAssists) : null,
+        selfGlobalRating: entry.selfGlobalRating != null ? Number(entry.selfGlobalRating) : null,
         selfDefRating: entry.selfDefRating != null ? Number(entry.selfDefRating) : null,
         selfFairPlay: entry.selfFairPlay != null ? Number(entry.selfFairPlay) : null,
         selfSubmittedAt: (entry.selfSubmittedAt as string) ?? null,
         captainGoals: entry.captainGoals != null ? Number(entry.captainGoals) : null,
         captainAssists: entry.captainAssists != null ? Number(entry.captainAssists) : null,
+        captainGlobalRating: entry.captainGlobalRating != null ? Number(entry.captainGlobalRating) : null,
         captainDefRating: entry.captainDefRating != null ? Number(entry.captainDefRating) : null,
         captainFairPlay: entry.captainFairPlay != null ? Number(entry.captainFairPlay) : null,
         captainUpdatedAt: (entry.captainUpdatedAt as string) ?? null,
         proposedGoals: Number(entry.proposedGoals ?? 0),
         proposedAssists: Number(entry.proposedAssists ?? 0),
+        proposedGlobalRating: Number(entry.proposedGlobalRating ?? DEFAULT_GLOBAL_RATING),
         proposedDefRating: Number(entry.proposedDefRating ?? DEFAULT_DEFENSIVE_RATING),
         proposedFairPlay: Number(entry.proposedFairPlay ?? DEFAULT_FAIR_PLAY_RATING),
         name: entry.name as string,
@@ -118,6 +122,7 @@ export async function submitMyMatchStats(
   goals: number,
   assists: number,
   mvpParticipantKey: string | null,
+  globalRating: number = DEFAULT_GLOBAL_RATING,
   defRating: number = DEFAULT_DEFENSIVE_RATING,
   fairPlay: number = DEFAULT_FAIR_PLAY_RATING
 ): Promise<void> {
@@ -128,6 +133,7 @@ export async function submitMyMatchStats(
     p_assists: assists,
     p_mvp_user_id: mvp.userId ?? null,
     p_mvp_attendee_id: mvp.attendeeId ?? null,
+    p_global_rating: globalRating,
     p_def_rating: defRating,
     p_fair_play: fairPlay,
   });
@@ -149,6 +155,7 @@ export async function captainSaveTeamStats(
       attendee_id: p.attendeeId ?? null,
       goals: p.goals,
       assists: p.assists,
+      global_rating: p.globalRating,
       def_rating: p.defRating,
       fair_play: p.fairPlay,
     })),
@@ -172,6 +179,7 @@ export async function finalizeMatchStats(
       team: p.team,
       goals: p.goals,
       assists: p.assists,
+      global_rating: p.globalRating,
       def_rating: p.defRating,
       fair_play: p.fairPlay,
     })),
@@ -322,7 +330,7 @@ export function getMvpCandidates(
 
 export function buildFinalizeStatsFromEntries(
   entries: MatchStatsState['entries'],
-  overrides: Record<string, { goals: number; assists: number; defRating: number; fairPlay: number }>
+  overrides: Record<string, { goals: number; assists: number; globalRating: number; defRating: number; fairPlay: number }>
 ): FinalizePlayerStat[] {
   return entries.map((e) => {
     const key = getParticipantKey(e);
@@ -330,6 +338,7 @@ export function buildFinalizeStatsFromEntries(
     const stat = {
       goals: override?.goals ?? e.proposedGoals,
       assists: override?.assists ?? e.proposedAssists,
+      globalRating: override?.globalRating ?? e.proposedGlobalRating,
       defRating: override?.defRating ?? e.proposedDefRating,
       fairPlay: override?.fairPlay ?? e.proposedFairPlay,
     };
