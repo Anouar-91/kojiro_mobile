@@ -98,6 +98,7 @@ export async function fetchMatchRecap(matchId: string): Promise<MatchRecap> {
       defRating: Number(p.defRating ?? DEFAULT_DEFENSIVE_RATING),
       mvp: Boolean(p.mvp),
       result: p.result as string,
+      isGuest: Boolean(p.isGuest),
     })),
   };
 }

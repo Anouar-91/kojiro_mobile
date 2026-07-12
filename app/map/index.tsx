@@ -12,6 +12,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { MATCH_FORMAT_PRESETS, Match } from '@/types';
 import { distanceKm } from '@/utils/geo';
+import { isMatchListedAsUpcoming } from '@/utils/matchDates';
 
 interface MatchWithDistance {
   match: Match;
@@ -29,7 +30,7 @@ export default function MapScreen() {
   );
 
   const upcomingMatches = useMemo(
-    () => allMatches.filter((m) => m.status === 'upcoming'),
+    () => allMatches.filter((m) => m.status === 'upcoming' && isMatchListedAsUpcoming(m)),
     [allMatches]
   );
 

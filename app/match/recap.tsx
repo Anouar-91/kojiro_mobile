@@ -114,13 +114,19 @@ function PlayerStatRow({
   isMe: boolean;
   onPress?: () => void;
 }) {
+  const isGuest = player.isGuest ?? isGuestPlayerId(player.userId);
   const row = (
     <View style={[styles.playerRow, isMe && styles.playerRowMe]}>
-      <Avatar uri={player.avatarUrl ?? `https://i.pravatar.cc/150?u=${player.userId}`} size={36} />
+      <Avatar
+        uri={isGuest ? '' : (player.avatarUrl ?? `https://i.pravatar.cc/150?u=${player.userId}`)}
+        size={36}
+        name={player.name}
+      />
       <View style={styles.playerInfo}>
         <View style={styles.playerNameRow}>
           <Text style={styles.playerName}>{player.name}</Text>
           {player.mvp && <Badge label="MVP" variant="primary" />}
+          {isGuest && <Badge label="Invité" variant="warning" />}
           {isMe && <Text style={styles.meLabel}>Toi</Text>}
         </View>
         <Text style={styles.playerMeta}>
@@ -309,7 +315,8 @@ export default function MatchRecapScreen() {
         <Text style={styles.sectionTitle}>Stats joueurs</Text>
         {recap.players.map((player) => {
           const isMe = player.userId === user?.id;
-          const canOpenProfile = !isMe && !isGuestPlayerId(player.userId);
+          const isGuest = player.isGuest ?? isGuestPlayerId(player.userId);
+          const canOpenProfile = !isMe && !isGuest;
           return (
             <PlayerStatRow
               key={player.userId}

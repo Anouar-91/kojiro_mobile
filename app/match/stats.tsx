@@ -26,6 +26,7 @@ import {
   getParticipantKey,
   openMatchStats,
   submitMyMatchStats,
+  updateMatchScore,
 } from '@/services/matchStats';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
@@ -37,7 +38,7 @@ import {
   EditableMatchStat,
   MatchStatsState,
 } from '@/types/matchStats';
-import { TeamSide } from '@/types/lineup';
+import { MatchComposition, TeamSide } from '@/types/lineup';
 import { isGuestPlayerId } from '@/utils/guestAttendees';
 import {
   buildRosterFromComposition,
@@ -49,6 +50,73 @@ import { computeMatchGlobalRating, getResultForTeam } from '@/utils/calculateMat
 type EditableStat = EditableMatchStat;
 
 const RATING_OPTIONS = [1, 2, 3, 4, 5] as const;
+
+function formatTeamSideLabel(
+  side: TeamSide,
+  composition: MatchComposition | null,
+  getProfile: (id: string) => { name?: string } | undefined,
+  captainOverride?: string | null
+): string {
+  const formation = side === 'A' ? composition?.formationA : composition?.formationB;
+  const captainId =
+    captainOverride ?? (side === 'A' ? composition?.captainAId : composition?.captainBId);
+  const captainName = captainId ? getProfile(captainId)?.name : undefined;
+
+  let label = `Équipe ${side}`;
+  if (formation && formation !== 'auto') {
+    label += ` — ${formation}`;
+  }
+  if (captainName) {
+    label += ` · ${captainName}`;
+  }
+  return label;
+}
+
+function ScoreEntryRow({
+  teamALabel,
+  teamBLabel,
+  teamAScore,
+  teamBScore,
+  onTeamAScoreChange,
+  onTeamBScoreChange,
+}: {
+  teamALabel: string;
+  teamBLabel: string;
+  teamAScore: string;
+  teamBScore: string;
+  onTeamAScoreChange: (v: string) => void;
+  onTeamBScoreChange: (v: string) => void;
+}) {
+  return (
+    <View style={styles.scoreRow}>
+      <View style={styles.scoreBox}>
+        <Text style={styles.teamLabel} numberOfLines={2}>
+          {teamALabel}
+        </Text>
+        <TextInput
+          style={styles.scoreInput}
+          value={teamAScore}
+          onChangeText={onTeamAScoreChange}
+          keyboardType="number-pad"
+          maxLength={2}
+        />
+      </View>
+      <Text style={styles.scoreSep}>—</Text>
+      <View style={styles.scoreBox}>
+        <Text style={styles.teamLabel} numberOfLines={2}>
+          {teamBLabel}
+        </Text>
+        <TextInput
+          style={styles.scoreInput}
+          value={teamBScore}
+          onChangeText={onTeamBScoreChange}
+          keyboardType="number-pad"
+          maxLength={2}
+        />
+      </View>
+    </View>
+  );
+}
 
 function RatingPicker({
   label,
@@ -272,6 +340,9 @@ export default function MatchStatsScreen() {
 
   const [teamAScore, setTeamAScore] = useState('0');
   const [teamBScore, setTeamBScore] = useState('0');
+  const [editTeamAScore, setEditTeamAScore] = useState('');
+  const [editTeamBScore, setEditTeamBScore] = useState('');
+  const [composition, setComposition] = useState<MatchComposition | null>(null);
 
   const [myGoals, setMyGoals] = useState(0);
   const [myAssists, setMyAssists] = useState(0);
@@ -284,6 +355,31 @@ export default function MatchStatsScreen() {
 
   const [finalStats, setFinalStats] = useState<Record<string, EditableStat>>({});
   const [finalMvpId, setFinalMvpId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    fetchMatchComposition(id)
+      .then(setComposition)
+      .catch(() => setComposition(null));
+  }, [id]);
+
+  useEffect(() => {
+    fetchProfiles();
+  }, [fetchProfiles]);
+
+  useEffect(() => {
+    if (statsState?.teamAScore != null) setEditTeamAScore(String(statsState.teamAScore));
+    if (statsState?.teamBScore != null) setEditTeamBScore(String(statsState.teamBScore));
+  }, [statsState?.teamAScore, statsState?.teamBScore]);
+
+  const teamLabels = useMemo(() => {
+    const captainA = statsState?.captainAId ?? composition?.captainAId ?? null;
+    const captainB = statsState?.captainBId ?? composition?.captainBId ?? null;
+    return {
+      teamA: formatTeamSideLabel('A', composition, getProfile, captainA),
+      teamB: formatTeamSideLabel('B', composition, getProfile, captainB),
+    };
+  }, [composition, getProfile, statsState?.captainAId, statsState?.captainBId]);
 
   const loadStats = useCallback(async () => {
     if (!id) return;
@@ -369,9 +465,38 @@ export default function MatchStatsScreen() {
     return buildGoalTotalsStatus(
       entries as { teamSide: TeamSide; goals: number }[],
       statsState.teamAScore ?? 0,
-      statsState.teamBScore ?? 0
+      statsState.teamBScore ?? 0,
+      teamLabels
     );
-  }, [finalStats, statsState]);
+  }, [finalStats, statsState, teamLabels]);
+
+  const handleUpdateScore = async () => {
+    if (!match) return;
+    const scoreA = parseInt(editTeamAScore, 10);
+    const scoreB = parseInt(editTeamBScore, 10);
+    if (isNaN(scoreA) || isNaN(scoreB) || scoreA < 0 || scoreB < 0) {
+      Alert.alert('Erreur', 'Entre un score valide pour chaque équipe.');
+      return;
+    }
+
+    if (scoreA === statsState?.teamAScore && scoreB === statsState?.teamBScore) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await updateMatchScore(match.id, scoreA, scoreB);
+      await loadStats();
+      Alert.alert(
+        'Score mis à jour',
+        'Les validations capitaines et votes MVP ont été réinitialisés. Vérifie la répartition des buts avant de finaliser.'
+      );
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de modifier le score');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleOpenStats = async () => {
     if (!match || !user) return;
@@ -463,20 +588,31 @@ export default function MatchStatsScreen() {
 
     setSaving(true);
     try {
-      const playerStats = statsState.entries
-        .filter((e) => e.userId && !e.isGuest)
-        .map((e) => {
-          const key = getParticipantKey(e);
-          const stat = finalStats[key] ?? defaultEditableMatchStat();
+      const playerStats = statsState.entries.map((e) => {
+        const key = getParticipantKey(e);
+        const stat = finalStats[key] ?? defaultEditableMatchStat();
+        if (e.isGuest && e.attendeeId) {
           return {
-            userId: e.userId!,
+            attendeeId: e.attendeeId,
             team: e.teamSide,
             goals: stat.goals,
             assists: stat.assists,
             defRating: stat.defRating,
             fairPlay: stat.fairPlay,
           };
-        });
+        }
+        if (!e.userId) {
+          throw new Error(`Joueur invalide: ${e.name}`);
+        }
+        return {
+          userId: e.userId,
+          team: e.teamSide,
+          goals: stat.goals,
+          assists: stat.assists,
+          defRating: stat.defRating,
+          fairPlay: stat.fairPlay,
+        };
+      });
 
       await finalizeMatchStats(match.id, playerStats, finalMvpId);
       await fetchMatches();
@@ -523,31 +659,17 @@ export default function MatchStatsScreen() {
         <Text style={styles.subtitle}>{match.title}</Text>
         <Text style={styles.hint}>
           Indique le score final. Chaque joueur saisira ses stats, les capitaines valideront leur équipe, puis tu finalises.
+          Les équipes sont identifiées par leur formation et leur capitaine.
         </Text>
 
-        <View style={styles.scoreRow}>
-          <View style={styles.scoreBox}>
-            <Text style={styles.teamLabel}>Équipe A</Text>
-            <TextInput
-              style={styles.scoreInput}
-              value={teamAScore}
-              onChangeText={setTeamAScore}
-              keyboardType="number-pad"
-              maxLength={2}
-            />
-          </View>
-          <Text style={styles.scoreSep}>—</Text>
-          <View style={styles.scoreBox}>
-            <Text style={styles.teamLabel}>Équipe B</Text>
-            <TextInput
-              style={styles.scoreInput}
-              value={teamBScore}
-              onChangeText={setTeamBScore}
-              keyboardType="number-pad"
-              maxLength={2}
-            />
-          </View>
-        </View>
+        <ScoreEntryRow
+          teamALabel={teamLabels.teamA}
+          teamBLabel={teamLabels.teamB}
+          teamAScore={teamAScore}
+          teamBScore={teamBScore}
+          onTeamAScoreChange={setTeamAScore}
+          onTeamBScoreChange={setTeamBScore}
+        />
 
         <Button
           title="Ouvrir la saisie"
@@ -589,12 +711,44 @@ export default function MatchStatsScreen() {
       <Text style={styles.title}>Stats du match</Text>
       <Text style={styles.subtitle}>{match.title}</Text>
 
-      <View style={styles.scoreBanner}>
-        <Text style={styles.scoreBannerText}>
-          Score : {statsState.teamAScore} — {statsState.teamBScore}
-          {statsState.winningSide === 'draw' ? ' (nul)' : ` · Équipe ${statsState.winningSide} gagnante`}
-        </Text>
-      </View>
+      {isOrganizer ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Score du match</Text>
+          <Text style={styles.hint}>
+            Tu peux corriger le score si tu t&apos;es trompé d&apos;équipe. Les validations capitaines et votes MVP seront réinitialisés.
+          </Text>
+          <ScoreEntryRow
+            teamALabel={teamLabels.teamA}
+            teamBLabel={teamLabels.teamB}
+            teamAScore={editTeamAScore}
+            teamBScore={editTeamBScore}
+            onTeamAScoreChange={setEditTeamAScore}
+            onTeamBScoreChange={setEditTeamBScore}
+          />
+          <Button
+            title="Enregistrer le score"
+            onPress={handleUpdateScore}
+            loading={saving}
+            fullWidth
+            variant="outline"
+            icon="create-outline"
+            disabled={
+              editTeamAScore === String(statsState.teamAScore ?? '') &&
+              editTeamBScore === String(statsState.teamBScore ?? '')
+            }
+          />
+        </View>
+      ) : (
+        <View style={styles.scoreBanner}>
+          <Text style={styles.scoreBannerText}>
+            Score : {statsState.teamAScore} — {statsState.teamBScore}
+            {statsState.winningSide === 'draw' ? ' (nul)' : ` · ${teamLabels[`team${statsState.winningSide}` as 'teamA' | 'teamB']} gagnante`}
+          </Text>
+          <Text style={styles.scoreBannerSub}>
+            {teamLabels.teamA} vs {teamLabels.teamB}
+          </Text>
+        </View>
+      )}
 
       {isPresent && myEntry && (
         <View style={styles.section}>
@@ -627,7 +781,7 @@ export default function MatchStatsScreen() {
 
       {captainSide && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Capitaine — équipe {captainSide}</Text>
+          <Text style={styles.sectionTitle}>Capitaine — {teamLabels[`team${captainSide}` as 'teamA' | 'teamB']}</Text>
           <Text style={styles.hint}>
             Vérifie les stats de ton équipe, corrige si besoin, puis valide.
           </Text>
@@ -680,17 +834,17 @@ export default function MatchStatsScreen() {
             getProfile={getProfile}
           />
           <Button
-            title={`Valider l'équipe ${captainSide}`}
+            title={`Valider ${teamLabels[`team${captainSide}` as 'teamA' | 'teamB']}`}
             onPress={() => handleCaptainSave(captainSide)}
             loading={saving}
             fullWidth
             icon="checkmark-circle-outline"
           />
           {captainSide === 'A' && teamAValidated && (
-            <Text style={styles.validatedHint}>Équipe A validée</Text>
+            <Text style={styles.validatedHint}>{teamLabels.teamA} validée</Text>
           )}
           {captainSide === 'B' && teamBValidated && (
-            <Text style={styles.validatedHint}>Équipe B validée</Text>
+            <Text style={styles.validatedHint}>{teamLabels.teamB} validée</Text>
           )}
         </View>
       )}
@@ -699,8 +853,8 @@ export default function MatchStatsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Finalisation (organisateur)</Text>
           <Text style={styles.hint}>
-            Répartis les buts de chaque joueur pour qu'ils correspondent au score du match, puis valide.
-            La note globale est calculée automatiquement pour chaque joueur.
+            Répartis les buts de chaque joueur (y compris les invités) pour qu&apos;ils correspondent au score du match, puis valide.
+            Les stats des invités apparaissent dans le résumé mais ne modifient pas leur profil.
           </Text>
 
           <GoalTotalsBanner
@@ -711,8 +865,8 @@ export default function MatchStatsScreen() {
           />
 
           <View style={styles.validationRow}>
-            <Text style={styles.validationChip}>Équipe A {teamAValidated ? '✓' : '…'}</Text>
-            <Text style={styles.validationChip}>Équipe B {teamBValidated ? '✓' : '…'}</Text>
+            <Text style={styles.validationChip}>{teamLabels.teamA} {teamAValidated ? '✓' : '…'}</Text>
+            <Text style={styles.validationChip}>{teamLabels.teamB} {teamBValidated ? '✓' : '…'}</Text>
           </View>
 
           {statsState.entries.map((e) => {
@@ -729,33 +883,31 @@ export default function MatchStatsScreen() {
                   <Text style={styles.playerName}>{e.name}</Text>
                   {e.isGuest && <Text style={styles.guestTag}>Invité</Text>}
                 </View>
-                {e.userId && !e.isGuest ? (
-                  <>
-                    <StatInputs
-                      goals={stat.goals}
-                      assists={stat.assists}
-                      onGoalsChange={(g) => updateFinalStat(key, { goals: g })}
-                      onAssistsChange={(a) => updateFinalStat(key, { assists: a })}
-                      compact
-                    />
-                    <RatingPicker
-                      label="Note défensive"
-                      icon="defense"
-                      value={stat.defRating}
-                      onChange={(d) => updateFinalStat(key, { defRating: d })}
-                      compact
-                    />
-                    <RatingPicker
-                      label="Fair-play"
-                      icon="fairPlay"
-                      value={stat.fairPlay}
-                      onChange={(f) => updateFinalStat(key, { fairPlay: f })}
-                      compact
-                    />
-                    <EstimatedGlobalRating result={result} stat={stat} isMvp={isMvp} />
-                  </>
+                <StatInputs
+                  goals={stat.goals}
+                  assists={stat.assists}
+                  onGoalsChange={(g) => updateFinalStat(key, { goals: g })}
+                  onAssistsChange={(a) => updateFinalStat(key, { assists: a })}
+                  compact
+                />
+                <RatingPicker
+                  label="Note défensive"
+                  icon="defense"
+                  value={stat.defRating}
+                  onChange={(d) => updateFinalStat(key, { defRating: d })}
+                  compact
+                />
+                <RatingPicker
+                  label="Fair-play"
+                  icon="fairPlay"
+                  value={stat.fairPlay}
+                  onChange={(f) => updateFinalStat(key, { fairPlay: f })}
+                  compact
+                />
+                {!e.isGuest && e.userId ? (
+                  <EstimatedGlobalRating result={result} stat={stat} isMvp={isMvp} />
                 ) : (
-                  <Text style={styles.muted}>Stats invité (non comptabilisées au profil)</Text>
+                  <Text style={styles.guestStatsHint}>Stats visibles dans le résumé uniquement</Text>
                 )}
               </View>
             );
@@ -807,7 +959,7 @@ const styles = StyleSheet.create({
   hint: { ...Typography.caption, color: Colors.textMuted, marginBottom: Spacing.lg },
   scoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.lg, marginBottom: Spacing.xxl },
   scoreBox: { alignItems: 'center', flex: 1 },
-  teamLabel: { ...Typography.caption, color: Colors.textMuted, marginBottom: Spacing.sm },
+  teamLabel: { ...Typography.caption, color: Colors.textMuted, marginBottom: Spacing.sm, textAlign: 'center' },
   scoreInput: {
     ...Typography.h1,
     color: Colors.primary,
@@ -827,6 +979,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   scoreBannerText: { ...Typography.bodyBold, color: Colors.primary, textAlign: 'center' },
+  scoreBannerSub: { ...Typography.caption, color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.xs },
   section: {
     marginBottom: Spacing.xxl,
     paddingBottom: Spacing.xl,
@@ -890,6 +1043,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   guestTag: { ...Typography.small, color: Colors.textMuted },
+  guestStatsHint: { ...Typography.caption, color: Colors.textMuted, marginTop: Spacing.sm },
   totalsBanner: {
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,

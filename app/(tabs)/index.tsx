@@ -19,6 +19,7 @@ import { useProfileStore } from '@/store/profileStore';
 import { NewsItem, User } from '@/types';
 import { NEARBY_MATCH_RADIUS_KM, sortByProximity } from '@/utils/geo';
 import { isUserRegisteredForMatch } from '@/utils/matchAttendance';
+import { isMatchListedAsUpcoming } from '@/utils/matchDates';
 import { openUserProfile } from '@/utils/profileNavigation';
 
 export default function HomeScreen() {
@@ -36,14 +37,14 @@ export default function HomeScreen() {
   const myUpcomingMatches = useMemo(
     () =>
       matches
-        .filter((m) => (m.status === 'upcoming' || m.status === 'pending_stats') && isUserRegisteredForMatch(m, user?.id))
+        .filter((m) => isMatchListedAsUpcoming(m) && isUserRegisteredForMatch(m, user?.id))
         .slice(0, 3),
     [matches, user?.id]
   );
   const { position: userPosition } = useCurrentLocation(user ?? undefined);
   const nearbyMatches = useMemo(() => {
     return sortByProximity(
-      matches.filter((m) => m.status === 'upcoming'),
+      matches.filter((m) => m.status === 'upcoming' && isMatchListedAsUpcoming(m)),
       userPosition,
       (m) => m.location
     )

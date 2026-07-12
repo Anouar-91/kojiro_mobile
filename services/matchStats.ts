@@ -95,6 +95,19 @@ export async function openMatchStats(
   if (error) throw new Error(error.message);
 }
 
+export async function updateMatchScore(
+  matchId: string,
+  teamAScore: number,
+  teamBScore: number
+): Promise<void> {
+  const { error } = await supabase.rpc('update_match_score', {
+    p_match_id: matchId,
+    p_team_a_score: teamAScore,
+    p_team_b_score: teamBScore,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function submitMyMatchStats(
   matchId: string,
   goals: number,
@@ -144,7 +157,8 @@ export async function finalizeMatchStats(
   const { error } = await supabase.rpc('finalize_match_stats', {
     p_match_id: matchId,
     p_player_stats: playerStats.map((p) => ({
-      user_id: p.userId,
+      user_id: p.userId ?? null,
+      attendee_id: p.attendeeId ?? null,
       team: p.team,
       goals: p.goals,
       assists: p.assists,
@@ -201,11 +215,14 @@ function formatGoalDelta(teamLabel: string, entered: number, target: number): st
 export function buildGoalTotalsStatus(
   entries: { teamSide: 'A' | 'B'; goals: number }[],
   targetA: number,
-  targetB: number
+  targetB: number,
+  teamLabels?: { teamA: string; teamB: string }
 ): GoalTotalsStatus {
   const { teamA, teamB } = sumGoalsByTeam(entries);
   const teamAOk = teamA === targetA;
   const teamBOk = teamB === targetB;
+  const labelA = teamLabels?.teamA ?? 'Équipe A';
+  const labelB = teamLabels?.teamB ?? 'Équipe B';
   return {
     teamA,
     teamB,
@@ -215,8 +232,8 @@ export function buildGoalTotalsStatus(
     teamAOk,
     teamBOk,
     messages: [
-      formatGoalDelta('Équipe A', teamA, targetA),
-      formatGoalDelta('Équipe B', teamB, targetB),
+      formatGoalDelta(labelA, teamA, targetA),
+      formatGoalDelta(labelB, teamB, targetB),
     ],
   };
 }
@@ -234,18 +251,29 @@ export function buildFinalizeStatsFromEntries(
   entries: MatchStatsState['entries'],
   overrides: Record<string, { goals: number; assists: number; defRating: number; fairPlay: number }>
 ): FinalizePlayerStat[] {
-  return entries
-    .filter((e) => e.userId && !e.isGuest)
-    .map((e) => {
-      const key = getParticipantKey(e);
-      const override = overrides[key];
+  return entries.map((e) => {
+    const key = getParticipantKey(e);
+    const override = overrides[key];
+    const stat = {
+      goals: override?.goals ?? e.proposedGoals,
+      assists: override?.assists ?? e.proposedAssists,
+      defRating: override?.defRating ?? e.proposedDefRating,
+      fairPlay: override?.fairPlay ?? e.proposedFairPlay,
+    };
+    if (e.isGuest && e.attendeeId) {
       return {
-        userId: e.userId!,
+        attendeeId: e.attendeeId,
         team: e.teamSide,
-        goals: override?.goals ?? e.proposedGoals,
-        assists: override?.assists ?? e.proposedAssists,
-        defRating: override?.defRating ?? e.proposedDefRating,
-        fairPlay: override?.fairPlay ?? e.proposedFairPlay,
+        ...stat,
       };
-    });
+    }
+    if (!e.userId || e.isGuest) {
+      throw new Error(`Joueur invalide: ${e.name}`);
+    }
+    return {
+      userId: e.userId,
+      team: e.teamSide,
+      ...stat,
+    };
+  });
 }

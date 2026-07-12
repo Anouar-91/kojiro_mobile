@@ -78,7 +78,8 @@ export interface CaptainPlayerStatInput {
 }
 
 export interface FinalizePlayerStat {
-  userId: string;
+  userId?: string;
+  attendeeId?: string;
   team: TeamSide;
   goals: number;
   assists: number;

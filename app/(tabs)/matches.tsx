@@ -20,6 +20,7 @@ import {
   distanceKm,
 } from '@/utils/geo';
 import { isUserRegisteredForMatch } from '@/utils/matchAttendance';
+import { getMatchStartMs, isMatchListedAsUpcoming, isMatchPendingStats } from '@/utils/matchDates';
 
 type FormatFilter = 'all' | number;
 type ProximityFilter = 'all' | typeof NEARBY_MATCH_RADIUS_KM | typeof WIDER_MATCH_RADIUS_KM;
@@ -42,8 +43,8 @@ function sortMatches(items: MatchWithDistance[], sortBy: SortBy): MatchWithDista
     return sorted.sort((a, b) => a.distance - b.distance);
   }
   return sorted.sort((a, b) => {
-    const da = new Date(`${a.match.date}T${a.match.time}`).getTime();
-    const db = new Date(`${b.match.date}T${b.match.time}`).getTime();
+    const da = getMatchStartMs(a.match) ?? 0;
+    const db = getMatchStartMs(b.match) ?? 0;
     return da - db;
   });
 }
@@ -63,9 +64,19 @@ export default function MatchesScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const activeMatches = useMemo(
-    () => matches.filter((m) => m.status === 'upcoming' || m.status === 'live' || m.status === 'pending_stats'),
+    () => matches.filter(isMatchListedAsUpcoming),
     [matches]
   );
+
+  const statsToFinalize = useMemo<MatchWithDistance[]>(() => {
+    return matches
+      .filter((match) => isMatchPendingStats(match) && isMyMatch(match, user?.id))
+      .map((match) => ({
+        match,
+        distance: distanceKm(userPosition, match.location),
+      }))
+      .sort((a, b) => (getMatchStartMs(b.match) ?? 0) - (getMatchStartMs(a.match) ?? 0));
+  }, [matches, user?.id, userPosition]);
 
   const filteredMatches = useMemo<MatchWithDistance[]>(() => {
     let pool = activeMatches.map((match) => ({
@@ -146,7 +157,9 @@ export default function MatchesScreen() {
     />
   );
 
-  const hasResults = showDiscover ? myMatches.length + discoverMatches.length > 0 : myMatches.length > 0;
+  const hasResults =
+    statsToFinalize.length > 0 ||
+    (showDiscover ? myMatches.length + discoverMatches.length > 0 : myMatches.length > 0);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -260,6 +273,12 @@ export default function MatchesScreen() {
           </View>
         ) : (
           <>
+            {statsToFinalize.length > 0 && (
+              <>
+                <SectionHeader title="Stats à finaliser" />
+                {statsToFinalize.map(renderMatch)}
+              </>
+            )}
             {myMatches.length > 0 && (
               <>
                 <SectionHeader title="Mes matchs" />

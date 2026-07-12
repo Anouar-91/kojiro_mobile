@@ -191,6 +191,7 @@ export interface MatchRecapPlayer {
   defRating: number;
   mvp: boolean;
   result: string;
+  isGuest?: boolean;
 }
 
 export interface MatchRecap {
