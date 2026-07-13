@@ -16,7 +16,7 @@ import { GeoPlace } from '@/types/geo';
 
 export default function EditProfileScreen() {
   const router = useRouter();
-  const { user, updateUser } = useAuthStore();
+  const { user, updateUser, deleteAccount } = useAuthStore();
 
   const [name, setName] = useState(user?.name ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
@@ -38,6 +38,7 @@ export default function EditProfileScreen() {
   const [foot, setFoot] = useState<Foot>(user?.foot ?? 'Droit');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const pickAvatar = async () => {
     if (!user) return;
@@ -67,6 +68,47 @@ export default function EditProfileScreen() {
 
   const handleCityChange = (place: GeoPlace | null) => {
     setCityPlace(place);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Supprimer mon compte',
+      'Cette action est définitive. Ton compte et tes données personnelles seront supprimés. Tes participations aux matchs resteront visibles pour les autres joueurs sous « Joueur supprimé ».',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Continuer',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Confirmation finale',
+              'Es-tu sûr de vouloir supprimer définitivement ton compte Kojiro ?',
+              [
+                { text: 'Non, garder mon compte', style: 'cancel' },
+                {
+                  text: 'Oui, supprimer',
+                  style: 'destructive',
+                  onPress: async () => {
+                    setDeleting(true);
+                    try {
+                      await deleteAccount();
+                      router.replace('/(auth)/welcome');
+                    } catch (e) {
+                      Alert.alert(
+                        'Suppression impossible',
+                        e instanceof Error ? e.message : 'Une erreur est survenue'
+                      );
+                    } finally {
+                      setDeleting(false);
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
   };
 
   const handleSave = async () => {
@@ -152,6 +194,21 @@ export default function EditProfileScreen() {
       />
 
       <Button title="Enregistrer" onPress={handleSave} loading={saving} fullWidth size="lg" />
+
+      <View style={styles.dangerZone}>
+        <Text style={styles.dangerTitle}>Zone de danger</Text>
+        <Text style={styles.dangerDescription}>
+          La suppression efface ton compte et tes données personnelles. Les matchs auxquels tu as participé restent visibles pour les autres joueurs.
+        </Text>
+        <Button
+          title="Supprimer mon compte"
+          onPress={handleDeleteAccount}
+          loading={deleting}
+          variant="outline"
+          fullWidth
+          style={styles.deleteBtn}
+        />
+      </View>
     </ScrollView>
   );
 }
@@ -174,4 +231,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   uploading: { ...Typography.caption, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.sm },
+  dangerZone: {
+    marginTop: Spacing.xxxl,
+    paddingTop: Spacing.xxl,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    gap: Spacing.md,
+  },
+  dangerTitle: {
+    ...Typography.bodyBold,
+    color: Colors.error,
+  },
+  dangerDescription: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+  },
+  deleteBtn: {
+    borderColor: Colors.error,
+  },
 });

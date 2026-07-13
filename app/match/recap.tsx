@@ -27,6 +27,7 @@ import {
 } from '@/utils/formations';
 import { buildGuestUser, isGuestPlayerId, parseGuestPlayerId, uniqueUsersById } from '@/utils/guestAttendees';
 import { openUserProfile } from '@/utils/profileNavigation';
+import { isDeletedUser } from '@/utils/deletedUser';
 
 function formatScorers(players: MatchRecapPlayer[]): string {
   const scorers = players.filter((p) => p.goals > 0);
@@ -358,13 +359,13 @@ export default function MatchRecapScreen() {
         {recap.players.map((player) => {
           const isMe = player.userId === user?.id;
           const isGuest = player.isGuest ?? isGuestPlayerId(player.userId);
-          const canOpenProfile = !isMe && !isGuest;
+          const canOpenProfile = !isMe && !isGuest && !isDeletedUser({ name: player.name });
           return (
             <PlayerStatRow
               key={player.userId}
               player={player}
               isMe={isMe}
-              onPress={canOpenProfile ? () => openUserProfile(router, player.userId) : undefined}
+              onPress={canOpenProfile ? () => openUserProfile(router, player.userId, { name: player.name }) : undefined}
             />
           );
         })}

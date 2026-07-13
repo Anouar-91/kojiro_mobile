@@ -68,9 +68,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!isInitialized) return;
 
     const inAuthGroup = segments[0] === '(auth)';
-    const isOAuthCallback = segments[0] === 'auth';
 
-    if (!isAuthenticated && !inAuthGroup && !isOAuthCallback) {
+    if (!isAuthenticated && !inAuthGroup) {
       router.replace('/(auth)/welcome');
     } else if (isAuthenticated && inAuthGroup) {
       router.replace('/(tabs)');
@@ -144,7 +143,6 @@ export default function RootLayout() {
             <Stack.Screen name="tournament/index" options={{ title: 'Tournois' }} />
             <Stack.Screen name="social/feed" options={{ title: 'Highlights' }} />
             <Stack.Screen name="social/create-post" options={{ title: 'Publier' }} />
-            <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
             <Stack.Screen name="notifications/index" options={{ title: 'Notifications' }} />
           </Stack>
         </AuthGuard>

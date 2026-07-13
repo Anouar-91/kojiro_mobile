@@ -39,10 +39,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleSocial = () => {
-    Alert.alert('Bientôt disponible', 'La connexion Google et Apple sera activée prochainement.');
-  };
-
   return (
     <KeyboardAvoidingView
       style={[styles.container, { paddingTop: insets.top }]}
@@ -76,23 +72,6 @@ export default function LoginScreen() {
         />
 
         <Button title="Se connecter" onPress={handleLogin} loading={isLoading} fullWidth size="lg" />
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>ou continuer avec</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <View style={styles.social}>
-          <Pressable style={styles.socialBtn} onPress={handleSocial}>
-            <Ionicons name="logo-google" size={22} color={Colors.text} />
-            <Text style={styles.socialText}>Google</Text>
-          </Pressable>
-          <Pressable style={styles.socialBtn} onPress={handleSocial}>
-            <Ionicons name="logo-apple" size={22} color={Colors.text} />
-            <Text style={styles.socialText}>Apple</Text>
-          </Pressable>
-        </View>
 
         <Pressable onPress={() => router.push('/(auth)/register')} style={styles.link}>
           <Text style={styles.linkText}>
@@ -129,42 +108,6 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textSecondary,
     marginBottom: Spacing.xxxl,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: Spacing.xxl,
-    gap: Spacing.md,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-  dividerText: {
-    ...Typography.caption,
-    color: Colors.textMuted,
-  },
-  social: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  socialBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    padding: Spacing.lg,
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  socialText: {
-    ...Typography.bodyBold,
-    color: Colors.text,
-    fontSize: 14,
   },
   link: {
     alignItems: 'center',

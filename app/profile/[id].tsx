@@ -18,6 +18,7 @@ import { fetchProfile } from '@/services/profiles';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
 import { User } from '@/types';
+import { isDeletedUser } from '@/utils/deletedUser';
 
 export default function PublicProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -78,6 +79,18 @@ export default function PublicProfileScreen() {
         <Ionicons name="person-outline" size={48} color={Colors.textMuted} />
         <Text style={styles.errorTitle}>Profil indisponible</Text>
         <Text style={styles.errorText}>{error ?? 'Ce joueur n\'existe pas.'}</Text>
+      </View>
+    );
+  }
+
+  if (isDeletedUser(profile)) {
+    return (
+      <View style={styles.centered}>
+        <Ionicons name="person-outline" size={48} color={Colors.textMuted} />
+        <Text style={styles.errorTitle}>Joueur supprimé</Text>
+        <Text style={styles.errorText}>
+          Ce joueur a supprimé son compte. Ses participations aux matchs restent visibles sous ce nom.
+        </Text>
       </View>
     );
   }

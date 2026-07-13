@@ -4,7 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { mapProfileToUser, userToProfileUpdate } from '@/lib/mappers';
 import { supabase } from '@/lib/supabase';
-import { signInWithApple, signInWithGoogle } from '@/services/auth/oauth';
+import { deleteOwnAccount } from '@/services/auth/account';
 import { fetchProfile, updateProfile } from '@/services/profiles';
 import { User } from '@/types';
 import { useProfileStore } from '@/store/profileStore';
@@ -16,9 +16,9 @@ interface AuthState {
   isInitialized: boolean;
   initialize: () => Promise<void>;
   login: (email: string, password: string) => Promise<boolean>;
-  loginWithProvider: (provider: 'google' | 'apple') => Promise<boolean>;
   register: (email: string, password: string, name: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -82,40 +82,6 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      loginWithProvider: async (provider) => {
-        set({ isLoading: true });
-        try {
-          if (provider === 'google') {
-            await signInWithGoogle();
-          } else {
-            await signInWithApple();
-          }
-
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session?.user) throw new Error('Session invalide après connexion sociale');
-
-          let profile = await fetchProfile(session.user.id);
-          if (!profile) {
-            const meta = session.user.user_metadata ?? {};
-            await supabase.from('profiles').upsert({
-              id: session.user.id,
-              email: session.user.email ?? '',
-              name: meta.full_name ?? meta.name ?? 'Joueur',
-              avatar: meta.avatar_url ?? meta.picture ?? '',
-            });
-            profile = await fetchProfile(session.user.id);
-          }
-
-          if (!profile) throw new Error('Profil introuvable');
-
-          set({ user: profile, isAuthenticated: true, isLoading: false });
-          return true;
-        } catch (e) {
-          set({ isLoading: false });
-          throw e;
-        }
-      },
-
       register: async (email, password, name) => {
         set({ isLoading: true });
         try {
@@ -159,6 +125,18 @@ export const useAuthStore = create<AuthState>()(
       logout: async () => {
         await supabase.auth.signOut();
         set({ user: null, isAuthenticated: false });
+      },
+
+      deleteAccount: async () => {
+        set({ isLoading: true });
+        try {
+          await deleteOwnAccount();
+          await supabase.auth.signOut();
+          set({ user: null, isAuthenticated: false, isLoading: false });
+        } catch (e) {
+          set({ isLoading: false });
+          throw e;
+        }
       },
 
       updateUser: async (updates) => {

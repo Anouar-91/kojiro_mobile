@@ -22,7 +22,7 @@ import { useAuthStore } from '@/store/authStore';
 export default function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { register, loginWithProvider, isLoading } = useAuthStore();
+  const { register, isLoading } = useAuthStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -60,23 +60,6 @@ export default function RegisterScreen() {
 
         <Button title="Créer mon compte" onPress={handleRegister} loading={isLoading} fullWidth size="lg" />
 
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>ou continuer avec</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <View style={styles.social}>
-          <Pressable style={styles.socialBtn} onPress={() => loginWithProvider('google').then(() => router.replace('/(tabs)'))}>
-            <Ionicons name="logo-google" size={22} color={Colors.text} />
-            <Text style={styles.socialText}>Google</Text>
-          </Pressable>
-          <Pressable style={styles.socialBtn} onPress={() => loginWithProvider('apple').then(() => router.replace('/(tabs)'))}>
-            <Ionicons name="logo-apple" size={22} color={Colors.text} />
-            <Text style={styles.socialText}>Apple</Text>
-          </Pressable>
-        </View>
-
         <Pressable onPress={() => router.push('/(auth)/login')} style={styles.link}>
           <Text style={styles.linkText}>
             Déjà un compte ? <Text style={styles.linkBold}>Se connecter</Text>
@@ -94,12 +77,6 @@ const styles = StyleSheet.create({
   logo: { alignSelf: 'center', marginBottom: Spacing.xl },
   title: { ...Typography.h1, color: Colors.text, marginBottom: Spacing.xs },
   subtitle: { ...Typography.body, color: Colors.textSecondary, marginBottom: Spacing.xxxl },
-  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: Spacing.xxl, gap: Spacing.md },
-  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
-  dividerText: { ...Typography.caption, color: Colors.textMuted },
-  social: { flexDirection: 'row', gap: Spacing.md },
-  socialBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, padding: Spacing.lg, backgroundColor: Colors.surfaceElevated, borderRadius: 12, borderWidth: 1, borderColor: Colors.border },
-  socialText: { ...Typography.bodyBold, color: Colors.text, fontSize: 14 },
   link: { alignItems: 'center', marginTop: Spacing.xxl },
   linkText: { ...Typography.body, color: Colors.textSecondary },
   linkBold: { color: Colors.primary, fontWeight: '700' },

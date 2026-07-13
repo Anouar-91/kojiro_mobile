@@ -29,6 +29,7 @@ export interface User {
   badges: Badge[];
   stats: PlayerStats;
   createdAt: string;
+  deletedAt?: string | null;
 }
 
 export interface PlayerStats {

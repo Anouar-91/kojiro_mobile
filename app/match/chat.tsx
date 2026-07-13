@@ -38,6 +38,7 @@ import { useProfileStore } from '@/store/profileStore';
 import { ChatMessage, User } from '@/types';
 import { canAccessMatchChat, getMatchChatAccessDeniedMessage } from '@/utils/matchAttendance';
 import { openUserProfile } from '@/utils/profileNavigation';
+import { isDeletedUser } from '@/utils/deletedUser';
 
 export default function MatchChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -340,7 +341,7 @@ export default function MatchChatScreen() {
         renderItem={({ item }) => {
           const sender = item.senderId === user?.id ? user : senders[item.senderId];
           const isOwn = item.senderId === user?.id;
-          const canOpenProfile = !isOwn && item.senderId !== 'system';
+          const canOpenProfile = !isOwn && item.senderId !== 'system' && !isDeletedUser(sender);
           return (
             <ChatBubble
               message={item}
@@ -348,7 +349,7 @@ export default function MatchChatScreen() {
               senderName={sender?.name}
               senderAvatar={sender?.avatar}
               onSenderPress={
-                canOpenProfile ? () => openUserProfile(router, item.senderId) : undefined
+                canOpenProfile ? () => openUserProfile(router, item.senderId, sender) : undefined
               }
             />
           );

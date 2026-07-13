@@ -24,7 +24,9 @@ export function mapProfileToUser(profile: DbProfile): User {
     id: profile.id,
     email: profile.email,
     name: profile.name,
-    avatar: profile.avatar_url ?? `https://i.pravatar.cc/150?u=${profile.id}`,
+    avatar: profile.deleted_at
+      ? ''
+      : profile.avatar_url ?? `https://i.pravatar.cc/150?u=${profile.id}`,
     position: profile.position as Position,
     foot: profile.foot as Foot,
     level: profile.level,
@@ -64,6 +66,7 @@ export function mapProfileToUser(profile: DbProfile): User {
       minutesPlayed: stats.minutesPlayed ?? DEFAULT_STATS.minutesPlayed,
     },
     createdAt: profile.created_at,
+    deletedAt: profile.deleted_at ?? null,
   };
 }
 

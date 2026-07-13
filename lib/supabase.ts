@@ -47,6 +47,7 @@ export type DbProfile = {
   stats: Record<string, number>;
   badges: Array<{ id: string; name: string; icon: string; description: string; earned_at: string }>;
   created_at: string;
+  deleted_at: string | null;
 };
 
 export type DbMatch = {

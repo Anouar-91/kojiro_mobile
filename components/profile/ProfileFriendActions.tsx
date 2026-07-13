@@ -6,6 +6,7 @@ import { getFriendshipState } from '@/services/friends';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
 import { User } from '@/types';
+import { isDeletedUser } from '@/utils/deletedUser';
 
 interface ProfileFriendActionsProps {
   targetUser: User;
@@ -19,7 +20,7 @@ export function ProfileFriendActions({ targetUser }: ProfileFriendActionsProps) 
   const declineRequest = useFriendStore((s) => s.declineRequest);
   const cancelRequest = useFriendStore((s) => s.cancelRequest);
 
-  if (!currentUser || currentUser.id === targetUser.id) return null;
+  if (!currentUser || currentUser.id === targetUser.id || isDeletedUser(targetUser)) return null;
 
   const friendState = getFriendshipState(currentUser.id, targetUser.id, requests);
   const request = requests.find(

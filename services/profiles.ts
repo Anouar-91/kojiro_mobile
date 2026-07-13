@@ -29,6 +29,7 @@ export async function fetchAllProfiles(limit = 100): Promise<User[]> {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
+    .is('deleted_at', null)
     .order('name')
     .limit(limit);
   if (error || !data) return [];
@@ -43,6 +44,7 @@ export async function searchProfiles(query: string, limit = 30): Promise<User[]>
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
+    .is('deleted_at', null)
     .or(`name.ilike.${pattern},email.ilike.${pattern},city.ilike.${pattern}`)
     .order('name')
     .limit(limit);
