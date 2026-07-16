@@ -11,6 +11,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.kojiro.app",
       "infoPlist": {
+        "CFBundleDevelopmentRegion": "fr",
+        "CFBundleLocalizations": ["fr"],
         "NSLocationWhenInUseUsageDescription": "Kojiro utilise votre position pour trouver des matchs à proximité.",
         "NSCameraUsageDescription": "Kojiro utilise la caméra pour publier des photos et vidéos.",
         "NSPhotoLibraryUsageDescription": "Kojiro accède à vos photos pour votre profil et les highlights.",

@@ -50,18 +50,14 @@ export default function InvitePlayersScreen() {
 
   const inviteablePlayers = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const pool = isSuggestMode
-      ? profiles.filter((p) => friendIds.includes(p.id))
-      : match?.visibility === 'friends_only'
-        ? profiles.filter((p) => friendIds.includes(p.id))
-        : profiles;
+    const pool = profiles.filter((p) => friendIds.includes(p.id));
 
     return pool.filter((p) => {
       if (p.id === user?.id) return false;
       if (q && !p.name.toLowerCase().includes(q) && !p.city.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [profiles, user?.id, search, match?.visibility, friendIds, isSuggestMode]);
+  }, [profiles, user?.id, search, friendIds]);
 
   const handleInvite = useCallback(
     async (player: User) => {
@@ -124,7 +120,7 @@ export default function InvitePlayersScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text style={styles.title}>{isSuggestMode ? 'Proposer un ami' : 'Inviter des joueurs'}</Text>
+      <Text style={styles.title}>{isSuggestMode ? 'Proposer un ami' : 'Inviter des amis'}</Text>
       <Text style={styles.subtitle}>{match.title}</Text>
       {isSuggestMode && (
         <Text style={styles.modeHint}>
@@ -143,11 +139,11 @@ export default function InvitePlayersScreen() {
         <ActivityIndicator color={Colors.primary} style={styles.loader} />
       ) : inviteablePlayers.length === 0 ? (
         <Text style={styles.muted}>
-          {isSuggestMode || match.visibility === 'friends_only'
-            ? 'Aucun ami à proposer. Ajoute des amis depuis Communauté.'
-            : search
-              ? 'Aucun joueur trouvé.'
-              : 'Aucun autre joueur inscrit sur Kojiro pour l\'instant.'}
+          {search
+            ? 'Aucun ami trouvé.'
+            : isSuggestMode
+              ? 'Aucun ami à proposer. Ajoute des amis depuis Communauté.'
+              : 'Aucun ami à inviter. Ajoute des amis depuis Communauté.'}
         </Text>
       ) : (
         inviteablePlayers.map((player) => {
