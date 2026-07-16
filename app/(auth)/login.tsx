@@ -9,7 +9,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -71,6 +70,13 @@ export default function LoginScreen() {
           icon="lock-closed-outline"
         />
 
+        <Pressable
+          onPress={() => router.push('/(auth)/forgot-password')}
+          style={styles.forgot}
+        >
+          <Text style={styles.forgotText}>Mot de passe oublié ?</Text>
+        </Pressable>
+
         <Button title="Se connecter" onPress={handleLogin} loading={isLoading} fullWidth size="lg" />
 
         <Pressable onPress={() => router.push('/(auth)/register')} style={styles.link}>
@@ -112,6 +118,16 @@ const styles = StyleSheet.create({
   link: {
     alignItems: 'center',
     marginTop: Spacing.xxl,
+  },
+  forgot: {
+    alignSelf: 'flex-end',
+    marginBottom: Spacing.xl,
+    marginTop: -Spacing.sm,
+  },
+  forgotText: {
+    ...Typography.caption,
+    color: Colors.primary,
+    fontWeight: '600',
   },
   linkText: {
     ...Typography.body,

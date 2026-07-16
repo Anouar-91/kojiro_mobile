@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
+import * as Linking from 'expo-linking';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -9,6 +10,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Colors } from '@/constants/theme';
 import { useNotificationSubscription } from '@/hooks/useNotificationSubscription';
 import { useAppRealtime } from '@/hooks/useAppRealtime';
+import { handleAuthDeepLink } from '@/lib/authDeepLink';
 import { registerPushToken } from '@/services/push';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
@@ -22,7 +24,7 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isInitialized, initialize } = useAuthStore();
+  const { isAuthenticated, isInitialized, isPasswordRecovery, initialize } = useAuthStore();
   const fetchMatches = useMatchStore((s) => s.fetchMatches);
   const fetchNotifications = useMatchStore((s) => s.fetchNotifications);
   const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
@@ -55,26 +57,52 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [initialize]);
 
   useEffect(() => {
-    if (isAuthenticated && userId) {
+    const handleUrl = (url: string | null) => {
+      if (url) void handleAuthDeepLink(url);
+    };
+
+    Linking.getInitialURL().then(handleUrl);
+    const subscription = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && userId && !isPasswordRecovery) {
       fetchMatches(userId);
       fetchProfiles();
       fetchFriends(userId);
       fetchNotifications(userId);
       registerPushToken(userId);
     }
-  }, [isAuthenticated, userId, fetchMatches, fetchProfiles, fetchFriends, fetchNotifications]);
+  }, [
+    isAuthenticated,
+    userId,
+    isPasswordRecovery,
+    fetchMatches,
+    fetchProfiles,
+    fetchFriends,
+    fetchNotifications,
+  ]);
 
   useEffect(() => {
     if (!isInitialized) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const onResetPassword = segments[1] === 'reset-password';
+
+    if (isPasswordRecovery) {
+      if (!onResetPassword) {
+        router.replace('/(auth)/reset-password');
+      }
+      return;
+    }
 
     if (!isAuthenticated && !inAuthGroup) {
       router.replace('/(auth)/welcome');
     } else if (isAuthenticated && inAuthGroup) {
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated, isInitialized, segments, router]);
+  }, [isAuthenticated, isInitialized, isPasswordRecovery, segments, router]);
 
   if (!isInitialized) {
     return (

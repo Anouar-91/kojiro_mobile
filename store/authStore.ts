@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Linking from 'expo-linking';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { mapProfileToUser, userToProfileUpdate } from '@/lib/mappers';
+import { userToProfileUpdate } from '@/lib/mappers';
 import { supabase } from '@/lib/supabase';
 import { deleteOwnAccount } from '@/services/auth/account';
 import { fetchProfile, updateProfile } from '@/services/profiles';
@@ -14,9 +15,13 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   isInitialized: boolean;
+  isPasswordRecovery: boolean;
   initialize: () => Promise<void>;
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, name: string) => Promise<boolean>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
+  clearPasswordRecovery: () => void;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<void>;
@@ -27,6 +32,12 @@ function getAuthErrorMessage(message: string): string {
   if (message.includes('Invalid login credentials')) return 'Email ou mot de passe incorrect';
   if (message.includes('User already registered')) return 'Un compte existe déjà avec cet email';
   if (message.includes('Password should be at least')) return 'Le mot de passe doit contenir au moins 6 caractères';
+  if (message.includes('rate limit') || message.includes('For security purposes')) {
+    return 'Trop de tentatives. Réessaie dans quelques minutes.';
+  }
+  if (message.includes('Unable to validate email') || message.includes('valid email')) {
+    return 'Adresse email invalide';
+  }
   return message;
 }
 
@@ -37,6 +48,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
       isInitialized: false,
+      isPasswordRecovery: false,
 
       initialize: async () => {
         try {
@@ -55,12 +67,16 @@ export const useAuthStore = create<AuthState>()(
           set({ isInitialized: true });
         }
 
-        supabase.auth.onAuthStateChange(async (_event, session) => {
+        supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'PASSWORD_RECOVERY') {
+            set({ isPasswordRecovery: true });
+          }
+
           if (session?.user) {
             const profile = await fetchProfile(session.user.id);
             if (profile) set({ user: profile, isAuthenticated: true });
           } else {
-            set({ user: null, isAuthenticated: false });
+            set({ user: null, isAuthenticated: false, isPasswordRecovery: false });
           }
         });
       },
@@ -122,9 +138,36 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      requestPasswordReset: async (email) => {
+        set({ isLoading: true });
+        try {
+          const redirectTo = Linking.createURL('reset-password');
+          const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+            redirectTo,
+          });
+          if (error) throw new Error(getAuthErrorMessage(error.message));
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      updatePassword: async (password) => {
+        set({ isLoading: true });
+        try {
+          const { error } = await supabase.auth.updateUser({ password });
+          if (error) throw new Error(getAuthErrorMessage(error.message));
+          set({ isPasswordRecovery: false, isLoading: false });
+        } catch (e) {
+          set({ isLoading: false });
+          throw e;
+        }
+      },
+
+      clearPasswordRecovery: () => set({ isPasswordRecovery: false }),
+
       logout: async () => {
         await supabase.auth.signOut();
-        set({ user: null, isAuthenticated: false });
+        set({ user: null, isAuthenticated: false, isPasswordRecovery: false });
       },
 
       deleteAccount: async () => {
@@ -132,7 +175,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           await deleteOwnAccount();
           await supabase.auth.signOut();
-          set({ user: null, isAuthenticated: false, isLoading: false });
+          set({ user: null, isAuthenticated: false, isPasswordRecovery: false, isLoading: false });
         } catch (e) {
           set({ isLoading: false });
           throw e;
