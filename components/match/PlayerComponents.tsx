@@ -4,10 +4,19 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { User } from '@/types';
 import { getPositionLabel } from '@/utils/formatters';
 import { getSkillScore } from '@/utils/teamBalancer';
+
+const ATTENDANCE_OPTIONS = [
+  { status: 'present' as const, label: 'Présent', icon: 'checkmark-circle', color: Colors.success },
+  { status: 'maybe' as const, label: 'Peut-être', icon: 'help-circle', color: Colors.warning },
+  { status: 'absent' as const, label: 'Absent', icon: 'close-circle', color: Colors.error },
+] as const;
+
+const ANSWERED_STATUSES = new Set(['present', 'maybe', 'absent']);
 
 interface PlayerRowProps {
   user: User;
@@ -160,6 +169,18 @@ interface AttendanceActionsProps {
   canSetAbsent?: boolean;
 }
 
+function isOptionDisabled(
+  status: 'present' | 'maybe' | 'absent',
+  currentStatus: string,
+  canSetPresent: boolean,
+  canSetMaybe: boolean,
+  canSetAbsent: boolean,
+) {
+  if (status === 'present') return !canSetPresent && currentStatus !== 'present';
+  if (status === 'maybe') return !canSetMaybe;
+  return !canSetAbsent;
+}
+
 export function AttendanceActions({
   currentStatus,
   onStatusChange,
@@ -167,51 +188,114 @@ export function AttendanceActions({
   canSetMaybe = true,
   canSetAbsent = true,
 }: AttendanceActionsProps) {
-  const options = [
-    { status: 'present' as const, label: 'Présent', icon: 'checkmark-circle', color: Colors.success },
-    { status: 'maybe' as const, label: 'Peut-être', icon: 'help-circle', color: Colors.warning },
-    { status: 'absent' as const, label: 'Absent', icon: 'close-circle', color: Colors.error },
-  ];
+  const hasAnswered = ANSWERED_STATUSES.has(currentStatus);
+  const selectedOption = ATTENDANCE_OPTIONS.find((opt) => opt.status === currentStatus);
+
+  const handlePress = (status: 'present' | 'maybe' | 'absent') => {
+    if (isOptionDisabled(status, currentStatus, canSetPresent, canSetMaybe, canSetAbsent)) return;
+    Haptics.selectionAsync();
+    onStatusChange(status);
+  };
+
+  if (!hasAnswered) {
+    const presentDisabled = isOptionDisabled('present', currentStatus, canSetPresent, canSetMaybe, canSetAbsent);
+    const maybeDisabled = isOptionDisabled('maybe', currentStatus, canSetPresent, canSetMaybe, canSetAbsent);
+    const absentDisabled = isOptionDisabled('absent', currentStatus, canSetPresent, canSetMaybe, canSetAbsent);
+
+    return (
+      <View style={styles.actionsContainer}>
+        <Text style={styles.attendanceHint}>Indique ta présence pour rejoindre le match</Text>
+        <Button
+          title="Je suis présent"
+          onPress={() => {
+            if (presentDisabled) return;
+            onStatusChange('present');
+          }}
+          icon="checkmark-circle"
+          fullWidth
+          size="lg"
+          disabled={presentDisabled}
+        />
+        <View style={styles.secondaryRow}>
+          <Pressable
+            style={[styles.secondaryBtn, maybeDisabled && styles.actionBtnDisabled]}
+            disabled={maybeDisabled}
+            onPress={() => handlePress('maybe')}
+          >
+            <Ionicons
+              name="help-circle"
+              size={18}
+              color={maybeDisabled ? Colors.textMuted : Colors.warning}
+            />
+            <Text style={[styles.secondaryLabel, maybeDisabled && styles.actionLabelDisabled]}>
+              Peut-être
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.secondaryBtn, absentDisabled && styles.actionBtnDisabled]}
+            disabled={absentDisabled}
+            onPress={() => handlePress('absent')}
+          >
+            <Ionicons
+              name="close-circle"
+              size={18}
+              color={absentDisabled ? Colors.textMuted : Colors.error}
+            />
+            <Text style={[styles.secondaryLabel, absentDisabled && styles.actionLabelDisabled]}>
+              Absent
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.actions}>
-      {options.map((opt) => {
-        const isPresentDisabled = opt.status === 'present' && !canSetPresent && currentStatus !== 'present';
-        const isMaybeDisabled = opt.status === 'maybe' && !canSetMaybe;
-        const isAbsentDisabled = opt.status === 'absent' && !canSetAbsent;
-        const isDisabled = isPresentDisabled || isMaybeDisabled || isAbsentDisabled;
-        return (
-        <Pressable
-          key={opt.status}
-          style={[
-            styles.actionBtn,
-            currentStatus === opt.status && { borderColor: opt.color, backgroundColor: `${opt.color}20` },
-            isDisabled && styles.actionBtnDisabled,
-          ]}
-          disabled={isDisabled}
-          onPress={() => {
-            if (isDisabled) return;
-            Haptics.selectionAsync();
-            onStatusChange(opt.status);
-          }}
-        >
-          <Ionicons
-            name={opt.icon as keyof typeof Ionicons.glyphMap}
-            size={22}
-            color={isDisabled ? Colors.textMuted : currentStatus === opt.status ? opt.color : Colors.textMuted}
-          />
-          <Text
-            style={[
-              styles.actionLabel,
-              currentStatus === opt.status && { color: opt.color },
-              isDisabled && styles.actionLabelDisabled,
-            ]}
-          >
-            {opt.label}
-          </Text>
-        </Pressable>
-        );
-      })}
+    <View style={styles.actionsContainer}>
+      {selectedOption && (
+        <Text style={styles.attendanceConfirm}>
+          Tu es inscrit · {selectedOption.label}
+        </Text>
+      )}
+      <View style={styles.actions}>
+        {ATTENDANCE_OPTIONS.map((opt) => {
+          const isDisabled = isOptionDisabled(
+            opt.status,
+            currentStatus,
+            canSetPresent,
+            canSetMaybe,
+            canSetAbsent,
+          );
+          const isSelected = currentStatus === opt.status;
+          return (
+            <Pressable
+              key={opt.status}
+              style={[
+                styles.actionBtn,
+                isSelected && { borderColor: opt.color, backgroundColor: `${opt.color}20` },
+                isDisabled && styles.actionBtnDisabled,
+              ]}
+              disabled={isDisabled}
+              onPress={() => handlePress(opt.status)}
+            >
+              <Ionicons
+                name={opt.icon}
+                size={22}
+                color={isDisabled ? Colors.textMuted : isSelected ? opt.color : Colors.textMuted}
+              />
+              <Text
+                style={[
+                  styles.actionLabel,
+                  isSelected && { color: opt.color },
+                  isDisabled && styles.actionLabelDisabled,
+                ]}
+              >
+                {opt.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -352,10 +436,45 @@ const styles = StyleSheet.create({
   removeBtn: {
     padding: Spacing.sm,
   },
+  actionsContainer: {
+    marginVertical: Spacing.lg,
+    gap: Spacing.md,
+  },
+  attendanceHint: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  attendanceConfirm: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  secondaryRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  secondaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceElevated,
+  },
+  secondaryLabel: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
   actions: {
     flexDirection: 'row',
     gap: Spacing.sm,
-    marginVertical: Spacing.lg,
   },
   actionBtn: {
     flex: 1,
