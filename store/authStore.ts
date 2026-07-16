@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Linking from 'expo-linking';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -141,9 +140,14 @@ export const useAuthStore = create<AuthState>()(
       requestPasswordReset: async (email) => {
         set({ isLoading: true });
         try {
-          const redirectTo = Linking.createURL('reset-password');
+          // HTTPS page opens reliably from email clients (deep link kept as mobile fallback screen).
+          const siteUrl = (
+            process.env.EXPO_PUBLIC_SITE_URL ??
+            process.env.EXPO_PUBLIC_WEB_URL ??
+            'https://kojiro.app'
+          ).replace(/\/$/, '');
           const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-            redirectTo,
+            redirectTo: `${siteUrl}/reset-password`,
           });
           if (error) throw new Error(getAuthErrorMessage(error.message));
         } finally {

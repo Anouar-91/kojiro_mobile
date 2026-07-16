@@ -56,9 +56,31 @@ Crée la table `social_posts`, le bucket Storage `highlights` et la colonne `pus
 Pour tester sans confirmation email :
 **Authentication → Providers → Email → désactiver "Confirm email"**
 
-### 7. OAuth Google / Apple (optionnel)
+### 7. Mot de passe oublié (obligatoire)
 
-Dans Supabase → **Authentication → URL Configuration**, ajoute ces Redirect URLs :
+Flux : app ou site → email Supabase → page web **`/reset-password`** (recommandé) ; l’écran mobile reste en fallback.
+
+Dans Supabase → **Authentication → URL Configuration**, ajoute ces **Redirect URLs** :
+
+```
+https://kojiro.app/reset-password
+https://app-web-two-mauve.vercel.app/reset-password
+http://localhost:3000/reset-password
+kojiro://reset-password
+exp://127.0.0.1:8081/--/reset-password
+```
+
+(Ajuste le domaine prod / l’URL Vercel / le port Expo Go selon ton setup.)
+
+Côté mobile, renseigne `EXPO_PUBLIC_SITE_URL` (ex. `https://kojiro.app`) pour que le mail redirige vers le web.
+
+Vérifie aussi :
+- **Authentication → Email Templates → Reset Password** : le lien doit utiliser `{{ .ConfirmationURL }}` (ou rediriger vers `{{ .RedirectTo }}`)
+- En prod : **Project Settings → Auth → SMTP** (Resend, SendGrid, etc.) — le mailer par défaut de Supabase est limité
+
+### 8. OAuth Google / Apple (optionnel)
+
+Dans Supabase → **Authentication → URL Configuration**, ajoute aussi :
 
 ```
 kojiro://auth/callback
@@ -67,45 +89,45 @@ exp://127.0.0.1:8081/--/auth/callback
 
 Active **Google** et **Apple** dans Providers et configure les clés OAuth.
 
-### 8. Migration 005 (fin de match)
+### 9. Migration 005 (fin de match)
 
 Exécute `supabase/migrations/005_complete_match.sql` dans le SQL Editor.
 
 Permet à l'organisateur de terminer un match, enregistrer scores/stats et mettre à jour XP + historique.
 
-### 9. Migration 006 (invitations)
+### 10. Migration 006 (invitations)
 
 Exécute `supabase/migrations/006_match_invites.sql` dans le SQL Editor.
 
 Permet à l'organisateur d'inviter des joueurs (notification + statut `pending`).
 
-### 10. Migration 007 (formats flexibles)
+### 11. Migration 007 (formats flexibles)
 
 Exécute `supabase/migrations/007_flexible_match_format.sql` pour autoriser 6v6, 9v9, etc.
 
-### 11. Migration 008 (remplaçants)
+### 12. Migration 008 (remplaçants)
 
 Exécute `supabase/migrations/008_substitutes.sql` pour gérer les remplaçants par équipe.
 
-### 12. Migration 009 (amis + match privé)
+### 13. Migration 009 (amis + match privé)
 
 Exécute `supabase/migrations/009_friendships.sql` dans le SQL Editor.
 
-### 13. Migration 010 (position GPS des joueurs)
+### 14. Migration 010 (position GPS des joueurs)
 
 Exécute `supabase/migrations/010_profile_location.sql` pour stocker latitude/longitude sur les profils (carte et distances réelles).
 
-### 14. Migration 011 (composition & formations)
+### 15. Migration 011 (composition & formations)
 
 Exécute `supabase/migrations/011_match_composition.sql` pour les équipes, formations tactiques et démarrage de match.
 
 Voir le parcours complet : **`MATCH_ORGANIZATION.md`**
 
-### 15. Migration 023 (joueurs invités sans appli)
+### 16. Migration 023 (joueurs invités sans appli)
 
 Exécute `supabase/migrations/023_match_guest_attendees.sql` pour permettre à l'organisateur d'ajouter manuellement des joueurs sans compte Kojiro.
 
-### 16. Relancer l'app
+### 17. Relancer l'app
 
 ```bash
 npm start

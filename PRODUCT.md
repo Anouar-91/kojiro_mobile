@@ -189,8 +189,10 @@ Légende : ✅ Fait · 🟡 Partiel · 🔲 Prévu · ⏸ Existe en base, pas da
 |----------------|--------|-------|
 | Inscription email | ✅ | |
 | Connexion email | ✅ | |
-| Google OAuth | ✅ | |
-| Apple Sign-In | ✅ | iOS natif + fallback web |
+| Mot de passe oublié | ✅ | Email Supabase → page web `/reset-password` (+ fallback mobile) |
+| Réinitialisation MDP | ✅ | Web `app-web` + écran mobile `/(auth)/reset-password` |
+| Google OAuth | ⚠️ | Dépendances présentes, UI non branchée |
+| Apple Sign-In | ⚠️ | Dépendances présentes, UI non branchée |
 | Création auto du profil | ✅ | Trigger Supabase |
 | Notif de bienvenue | ✅ | |
 
