@@ -3,8 +3,10 @@ import { fr } from 'date-fns/locale';
 
 export function formatMatchDate(dateStr: string, timeStr: string): string {
   try {
-    const date = parseISO(`${dateStr}T${timeStr}`);
-    return format(date, "EEEE d MMMM 'à' HH:mm", { locale: fr });
+    const normalizedDate = dateStr.slice(0, 10);
+    const normalizedTime = String(timeStr).slice(0, 5);
+    const date = parseISO(`${normalizedDate}T${normalizedTime}`);
+    return format(date, "EEEE d MMMM yyyy 'à' HH:mm", { locale: fr });
   } catch {
     return `${dateStr} à ${timeStr}`;
   }
@@ -12,7 +14,13 @@ export function formatMatchDate(dateStr: string, timeStr: string): string {
 
 export function formatShortDate(dateStr: string): string {
   try {
-    return format(parseISO(dateStr), 'd MMM', { locale: fr });
+    const normalized = dateStr.slice(0, 10);
+    const [year, month, day] = normalized.split('-').map(Number);
+    if (!year || !month || !day) return dateStr;
+    // Parse en local pour éviter le décalage UTC (date-only → jour précédent).
+    const date = new Date(year, month - 1, day);
+    const pattern = year === new Date().getFullYear() ? 'd MMM' : 'd MMM yyyy';
+    return format(date, pattern, { locale: fr });
   } catch {
     return dateStr;
   }

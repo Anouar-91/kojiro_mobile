@@ -1,5 +1,6 @@
 import { DbMatch, DbProfile } from '@/lib/supabase';
 import { Badge, Foot, Match, MatchAttendee, MatchFormat, Position, User } from '@/types';
+import { normalizeMatchDate, normalizeMatchTime } from '@/utils/matchDates';
 
 const DEFAULT_STATS = {
   matchesPlayed: 0,
@@ -87,8 +88,8 @@ export function mapDbMatchToMatch(row: DbMatch): Match {
     format: row.format as MatchFormat,
     substitutesPerTeam: row.substitutes_per_team ?? 0,
     visibility: (row.visibility ?? 'public') as Match['visibility'],
-    date: row.date,
-    time: row.time.slice(0, 5),
+    date: normalizeMatchDate(row.date) ?? row.date,
+    time: normalizeMatchTime(row.time) ?? String(row.time).slice(0, 5),
     location: {
       name: row.location_name,
       address: row.location_address,

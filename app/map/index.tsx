@@ -8,6 +8,7 @@ import { MatchMapView } from '@/components/map/MatchMapView';
 import { Chip } from '@/components/ui/Chip';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useCurrentLocation } from '@/hooks/useCurrentLocation';
+import { useNow } from '@/hooks/useNow';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { MATCH_FORMAT_PRESETS, Match } from '@/types';
@@ -28,10 +29,11 @@ export default function MapScreen() {
   const { position: userPosition, loading: locating, refresh: refreshLocation } = useCurrentLocation(
     user ?? undefined
   );
+  const now = useNow();
 
   const upcomingMatches = useMemo(
-    () => allMatches.filter((m) => m.status === 'upcoming' && isMatchListedAsUpcoming(m)),
-    [allMatches]
+    () => allMatches.filter((m) => m.status === 'upcoming' && isMatchListedAsUpcoming(m, now)),
+    [allMatches, now]
   );
 
   const [formatFilter, setFormatFilter] = useState<FormatFilter>('all');

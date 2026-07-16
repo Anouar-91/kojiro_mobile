@@ -11,6 +11,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useAppRefresh } from '@/hooks/useAppRefresh';
 import { useCurrentLocation } from '@/hooks/useCurrentLocation';
+import { useNow } from '@/hooks/useNow';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { MATCH_FORMAT_PRESETS, Match } from '@/types';
@@ -62,10 +63,11 @@ export default function MatchesScreen() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const refresh = useAppRefresh();
   const [refreshing, setRefreshing] = useState(false);
+  const now = useNow();
 
   const activeMatches = useMemo(
-    () => matches.filter(isMatchListedAsUpcoming),
-    [matches]
+    () => matches.filter((m) => isMatchListedAsUpcoming(m, now)),
+    [matches, now]
   );
 
   const statsToFinalize = useMemo<MatchWithDistance[]>(() => {

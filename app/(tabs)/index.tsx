@@ -11,6 +11,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useAppRefresh } from '@/hooks/useAppRefresh';
 import { useCurrentLocation } from '@/hooks/useCurrentLocation';
+import { useNow } from '@/hooks/useNow';
 import { fetchNews } from '@/services/news';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
@@ -33,24 +34,25 @@ export default function HomeScreen() {
   const refresh = useAppRefresh();
   const [news, setNews] = useState<NewsItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const now = useNow();
 
   const myUpcomingMatches = useMemo(
     () =>
       matches
-        .filter((m) => isMatchListedAsUpcoming(m) && isUserRegisteredForMatch(m, user?.id))
+        .filter((m) => isMatchListedAsUpcoming(m, now) && isUserRegisteredForMatch(m, user?.id))
         .slice(0, 3),
-    [matches, user?.id]
+    [matches, user?.id, now]
   );
   const { position: userPosition } = useCurrentLocation(user ?? undefined);
   const nearbyMatches = useMemo(() => {
     return sortByProximity(
-      matches.filter((m) => m.status === 'upcoming' && isMatchListedAsUpcoming(m)),
+      matches.filter((m) => m.status === 'upcoming' && isMatchListedAsUpcoming(m, now)),
       userPosition,
       (m) => m.location
     )
       .map(({ item, distance }) => ({ match: item, distance }))
       .slice(0, 2);
-  }, [matches, userPosition]);
+  }, [matches, userPosition, now]);
   const activeFriends = friendIds
     .map((id) => getProfile(id))
     .filter((p): p is User => Boolean(p))
