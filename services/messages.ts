@@ -21,6 +21,7 @@ type MessageRow = {
   content: string;
   type: string;
   created_at: string;
+  proposal_id?: string | null;
 };
 
 function mapRowToMessage(m: MessageRow): ChatMessage {
@@ -31,6 +32,7 @@ function mapRowToMessage(m: MessageRow): ChatMessage {
     content: m.content,
     timestamp: m.created_at,
     type: m.type as ChatMessage['type'],
+    proposalId: m.proposal_id ?? undefined,
   };
 }
 
@@ -111,16 +113,7 @@ export function subscribeToMessages(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `match_id=eq.${matchId}` },
         (payload) => {
-          const msg = mapRowToMessage(
-            payload.new as {
-              id: string;
-              match_id: string;
-              sender_id: string | null;
-              content: string;
-              type: string;
-              created_at: string;
-            }
-          );
+          const msg = mapRowToMessage(payload.new as MessageRow);
           listeners.forEach((listener) => listener(msg));
         }
       )

@@ -17,6 +17,11 @@ import {
   saveMatchComposition,
 } from '@/services/composition';
 import { createNotification } from '@/services/notifications';
+import {
+  buildTeamSplitProposalContent,
+  createMatchProposal,
+  teamSplitPayload,
+} from '@/services/proposals';
 import { useRefreshMatchProfiles } from '@/hooks/useRefreshMatchProfiles';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
@@ -155,6 +160,7 @@ export default function TeamsScreen() {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [proposing, setProposing] = useState(false);
   const [compositionMeta, setCompositionMeta] = useState<MatchComposition | null>(null);
   const rostersRef = useRef({ teamAIds, teamBIds });
   const skipNextSyncAlertRef = useRef(true);
@@ -534,6 +540,64 @@ export default function TeamsScreen() {
     await handleSave(false, null, { requireFormations: false, stayOnScreen: true });
   };
 
+  const handleProposeToChat = async () => {
+    if (!match || !user || proposing) return;
+
+    const filtered = filterRostersToPresent(teamAIds, teamBIds, presentParticipantIds);
+    const normalized = normalizeTeamRosters(filtered.teamAIds, filtered.teamBIds);
+    if (normalized.teamAIds.length === 0 || normalized.teamBIds.length === 0) {
+      Alert.alert('Composition incomplète', 'Il faut au moins un joueur dans chaque équipe.');
+      return;
+    }
+
+    setProposing(true);
+    try {
+      const saveSlotsA = filterSlotAssignmentsToPresent(slotsA, presentParticipantIds);
+      const saveSlotsB = filterSlotAssignmentsToPresent(slotsB, presentParticipantIds);
+      const lineups = buildLineupsFromState(
+        normalized.teamAIds,
+        normalized.teamBIds,
+        saveSlotsA,
+        saveSlotsB,
+        formationSlotsA,
+        formationSlotsB
+      );
+      const teamANames = normalized.teamAIds.map((pid) => resolveUser(pid)?.name ?? 'Joueur');
+      const teamBNames = normalized.teamBIds.map((pid) => resolveUser(pid)?.name ?? 'Joueur');
+
+      await createMatchProposal({
+        matchId: match.id,
+        proposalType: 'team_split',
+        payload: teamSplitPayload({
+          formationA: labelA,
+          formationB: labelB,
+          teamANames,
+          teamBNames,
+          lineups,
+        }),
+        content: buildTeamSplitProposalContent(
+          normalized.teamAIds.length,
+          normalized.teamBIds.length
+        ),
+      });
+
+      Alert.alert(
+        user.id === match.organizerId ? 'Composition enregistrée' : 'Proposition envoyée',
+        user.id === match.organizerId
+          ? 'La composition a été appliquée et partagée dans le chat.'
+          : 'L\'organisateur pourra accepter ta proposition dans le chat.',
+        [
+          { text: 'Ouvrir le chat', onPress: () => router.push(`/match/chat?id=${match.id}`) },
+          { text: 'OK' },
+        ]
+      );
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'envoyer la proposition');
+    } finally {
+      setProposing(false);
+    }
+  };
+
   const goToStep = async (next: Step) => {
     if (step === 'teams' && next !== 'teams' && isOrganizer) {
       try {
@@ -637,6 +701,14 @@ export default function TeamsScreen() {
             loading={saving}
             variant="secondary"
             icon="checkmark-circle-outline"
+            fullWidth
+          />
+          <Button
+            title="Proposer dans le chat"
+            onPress={handleProposeToChat}
+            loading={proposing}
+            variant="outline"
+            icon="chatbubble-ellipses-outline"
             fullWidth
           />
           <Button
@@ -776,6 +848,14 @@ export default function TeamsScreen() {
             fullWidth
             size="lg"
             icon="checkmark-circle-outline"
+          />
+          <Button
+            title="Proposer dans le chat"
+            onPress={handleProposeToChat}
+            loading={proposing}
+            fullWidth
+            variant="outline"
+            icon="chatbubble-ellipses-outline"
           />
         </>
       )}

@@ -1,7 +1,9 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Keyboard,
   NativeScrollEvent,
@@ -16,6 +18,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChatBubble } from '@/components/chat/ChatComponents';
+import {
+  PendingProposalsBanner,
+  PendingProposalsSheet,
+} from '@/components/chat/PendingProposalsSheet';
+import { ProposalCard } from '@/components/chat/ProposalCard';
+import { ProposeMenuModal } from '@/components/chat/ProposeMenuModal';
 import { Button } from '@/components/ui/Button';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import {
@@ -23,6 +31,7 @@ import {
   markChatRead,
   setActiveChatMatchId,
 } from '@/services/chatReads';
+import { fetchMatchComposition } from '@/services/composition';
 import {
   CHAT_PAGE_SIZE,
   fetchOlderMessages,
@@ -31,14 +40,31 @@ import {
   subscribeToMessages,
 } from '@/services/messages';
 import { fetchProfile } from '@/services/profiles';
+import {
+  buildFriendInviteProposalContent,
+  buildGuestProposalContent,
+  buildTransferProposalContent,
+  createMatchProposal,
+  fetchPendingProposals,
+  fetchProposalById,
+  fetchProposalsByIds,
+  friendInvitePayload,
+  guestPayload,
+  resolveMatchProposal,
+  subscribeToProposals,
+  transferPayload,
+} from '@/services/proposals';
 import { setSuppressChatBannerMatchId } from '@/services/push';
 import { useAuthStore } from '@/store/authStore';
+import { useFriendStore } from '@/store/friendStore';
 import { useMatchStore } from '@/store/matchStore';
 import { useProfileStore } from '@/store/profileStore';
-import { ChatMessage, User } from '@/types';
+import { ChatMessage, MatchProposal, Position, User } from '@/types';
+import { TeamSide } from '@/types/lineup';
+import { isDeletedUser } from '@/utils/deletedUser';
+import { resolveParticipantUser } from '@/utils/guestAttendees';
 import { canAccessMatchChat, getMatchChatAccessDeniedMessage } from '@/utils/matchAttendance';
 import { openUserProfile } from '@/utils/profileNavigation';
-import { isDeletedUser } from '@/utils/deletedUser';
 
 export default function MatchChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -46,14 +72,26 @@ export default function MatchChatScreen() {
   const user = useAuthStore((s) => s.user);
   const match = useMatchStore((s) => s.getMatch(id ?? ''));
   const refreshMatch = useMatchStore((s) => s.refreshMatch);
+  const getProfile = useProfileStore((s) => s.getProfile);
+  const profiles = useProfileStore((s) => s.profiles);
+  const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
+  const friendIds = useFriendStore((s) => s.friendIds);
+  const fetchFriends = useFriendStore((s) => s.fetchFriends);
   const [matchLoading, setMatchLoading] = useState(!match);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [proposals, setProposals] = useState<Record<string, MatchProposal>>({});
   const [senders, setSenders] = useState<Record<string, User>>({});
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMoreOlder, setHasMoreOlder] = useState(false);
   const [sending, setSending] = useState(false);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [proposeOpen, setProposeOpen] = useState(false);
+  const [pendingSheetOpen, setPendingSheetOpen] = useState(false);
+  const [transferCandidates, setTransferCandidates] = useState<
+    { id: string; name: string; side: TeamSide }[]
+  >([]);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const fetchNotifications = useMatchStore((s) => s.fetchNotifications);
   const upsertProfile = useProfileStore((s) => s.upsertProfile);
@@ -70,6 +108,46 @@ export default function MatchChatScreen() {
     () => (match && user ? canAccessMatchChat(match, user.id) : false),
     [match, user?.id]
   );
+
+  const isOrganizer = Boolean(match && user && match.organizerId === user.id);
+
+  const presentCount = useMemo(
+    () => match?.attendees.filter((a) => a.status === 'present').length ?? 0,
+    [match]
+  );
+
+  const friendCandidates = useMemo(() => {
+    if (!match || !user) return [];
+    const attendeeIds = new Set(
+      match.attendees
+        .filter((a) => a.userId && a.status !== 'absent')
+        .map((a) => a.userId!)
+    );
+    return friendIds
+      .filter((fid) => fid !== user.id && !attendeeIds.has(fid))
+      .map((fid) => {
+        const profile = profiles.find((p) => p.id === fid) ?? getProfile(fid);
+        return { id: fid, name: profile?.name ?? 'Ami' };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  }, [match, user, friendIds, profiles, getProfile]);
+
+  const pendingProposals = useMemo(
+    () =>
+      Object.values(proposals)
+        .filter((p) => p.status === 'pending')
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [proposals]
+  );
+
+  const proposerNames = useMemo(() => {
+    const names: Record<string, string> = {};
+    pendingProposals.forEach((p) => {
+      const profile = p.proposedBy === user?.id ? user : senders[p.proposedBy];
+      if (profile?.name) names[p.proposedBy] = profile.name;
+    });
+    return names;
+  }, [pendingProposals, senders, user]);
 
   useEffect(() => {
     if (!id || match) {
@@ -95,19 +173,59 @@ export default function MatchChatScreen() {
   messagesRef.current = messages;
   hasMoreOlderRef.current = hasMoreOlder;
 
-  const ensureSendersLoaded = useCallback((msgs: ChatMessage[]) => {
-    msgs.forEach((m) => {
-      if (m.senderId === 'system' || loadedSenderIdsRef.current.has(m.senderId)) return;
-      loadedSenderIdsRef.current.add(m.senderId);
-      fetchProfile(m.senderId).then((profile) => {
-        if (profile) {
-          upsertProfile(profile);
-          setSenders((prev) => ({ ...prev, [m.senderId]: profile }));
-        }
+  const ensureProposalsLoaded = useCallback(async (msgs: ChatMessage[]) => {
+    const ids = msgs
+      .map((m) => m.proposalId)
+      .filter((pid): pid is string => Boolean(pid));
+    if (ids.length === 0) return;
+    try {
+      const rows = await fetchProposalsByIds(ids);
+      if (rows.length === 0) return;
+      setProposals((prev) => {
+        const next = { ...prev };
+        rows.forEach((p) => {
+          next[p.id] = p;
+        });
+        return next;
       });
-    });
-  }, [upsertProfile]);
+    } catch {
+      // ignore — carte affichera le contenu texte
+    }
+  }, []);
 
+  const mergeProposals = useCallback((rows: MatchProposal[]) => {
+    if (rows.length === 0) return;
+    setProposals((prev) => {
+      const next = { ...prev };
+      rows.forEach((p) => {
+        next[p.id] = p;
+      });
+      return next;
+    });
+  }, []);
+
+  const ensureSenderIdsLoaded = useCallback(
+    (ids: string[]) => {
+      ids.forEach((senderId) => {
+        if (!senderId || senderId === 'system' || loadedSenderIdsRef.current.has(senderId)) return;
+        loadedSenderIdsRef.current.add(senderId);
+        fetchProfile(senderId).then((profile) => {
+          if (profile) {
+            upsertProfile(profile);
+            setSenders((prev) => ({ ...prev, [senderId]: profile }));
+          }
+        });
+      });
+    },
+    [upsertProfile]
+  );
+
+  const ensureSendersLoaded = useCallback(
+    (msgs: ChatMessage[]) => {
+      ensureSenderIdsLoaded(msgs.map((m) => m.senderId));
+    },
+    [ensureSenderIdsLoaded]
+  );
   const scrollToLatest = useCallback((animated = true) => {
     shouldScrollToEndRef.current = true;
     requestAnimationFrame(() => {
@@ -146,12 +264,13 @@ export default function MatchChatScreen() {
         return [...unique, ...prev];
       });
       ensureSendersLoaded(older);
+      ensureProposalsLoaded(older);
       setHasMoreOlder(older.length >= CHAT_PAGE_SIZE);
     } finally {
       loadingOlderRef.current = false;
       setLoadingOlder(false);
     }
-  }, [match, ensureSendersLoaded]);
+  }, [match, ensureSendersLoaded, ensureProposalsLoaded]);
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset } = event.nativeEvent;
@@ -178,6 +297,12 @@ export default function MatchChatScreen() {
   }, [match, user, fetchNotifications]);
 
   useEffect(() => {
+    if (!user?.id || !canUseChat) return;
+    fetchFriends(user.id).catch(() => {});
+    fetchProfiles().catch(() => {});
+  }, [user?.id, canUseChat, fetchFriends, fetchProfiles]);
+
+  useEffect(() => {
     if (!match || !canUseChat) return;
 
     setActiveChatMatchId(match.id);
@@ -200,6 +325,7 @@ export default function MatchChatScreen() {
     loadedSenderIdsRef.current.clear();
     canAutoLoadOlderRef.current = false;
     setMessages([]);
+    setProposals({});
     setHasMoreOlder(false);
     setLoading(true);
 
@@ -209,24 +335,85 @@ export default function MatchChatScreen() {
         setMessages(msgs);
         setHasMoreOlder(msgs.length >= CHAT_PAGE_SIZE);
         ensureSendersLoaded(msgs);
+        ensureProposalsLoaded(msgs);
       })
       .finally(() => {
         if (active) setLoading(false);
       });
 
-    const unsubscribe = subscribeToMessages(match.id, (msg) => {
+    fetchPendingProposals(match.id)
+      .then((rows) => {
+        if (!active) return;
+        mergeProposals(rows);
+        ensureSenderIdsLoaded(rows.map((p) => p.proposedBy));
+      })
+      .catch(() => {});
+
+    const unsubscribeMessages = subscribeToMessages(match.id, (msg) => {
       setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
       ensureSendersLoaded([msg]);
+      ensureProposalsLoaded([msg]);
       if (user && msg.senderId !== user.id) {
         syncRead();
       }
     });
 
+    const unsubscribeProposals = subscribeToProposals(match.id, (proposal) => {
+      setProposals((prev) => ({ ...prev, [proposal.id]: proposal }));
+      ensureSenderIdsLoaded([proposal.proposedBy]);
+      if (proposal.status === 'accepted') {
+        refreshMatch(match.id).catch(() => {});
+      }
+    });
+
     return () => {
       active = false;
-      unsubscribe();
+      unsubscribeMessages();
+      unsubscribeProposals();
     };
-  }, [match, user, syncRead, ensureSendersLoaded, canUseChat]);
+  }, [
+    match,
+    user,
+    syncRead,
+    ensureSendersLoaded,
+    ensureSenderIdsLoaded,
+    ensureProposalsLoaded,
+    mergeProposals,
+    canUseChat,
+    refreshMatch,
+  ]);
+
+  useEffect(() => {
+    if (!match || !canUseChat) {
+      setTransferCandidates([]);
+      return;
+    }
+
+    let active = true;
+    fetchMatchComposition(match.id)
+      .then((composition) => {
+        if (!active || !composition) {
+          if (active) setTransferCandidates([]);
+          return;
+        }
+        const candidates = composition.lineups.map((l) => {
+          const profile = resolveParticipantUser(l.userId, match, getProfile);
+          return {
+            id: l.userId,
+            name: profile?.name ?? 'Joueur',
+            side: l.teamSide,
+          };
+        });
+        setTransferCandidates(candidates);
+      })
+      .catch(() => {
+        if (active) setTransferCandidates([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [match, canUseChat, getProfile, proposals]);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -264,6 +451,149 @@ export default function MatchChatScreen() {
       setTimeout(() => scrollToLatest(), 50);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleProposeGuest = async (name: string, position: Position | null) => {
+    if (!match || !user) return;
+    const result = await createMatchProposal({
+      matchId: match.id,
+      proposalType: 'guest_add',
+      payload: guestPayload(name, position),
+      content: buildGuestProposalContent(name, position),
+    });
+    const proposal = await fetchProposalById(result.proposalId);
+    if (proposal) {
+      setProposals((prev) => ({ ...prev, [proposal.id]: proposal }));
+    }
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === result.messageId)) return prev;
+      return [
+        ...prev,
+        {
+          id: result.messageId,
+          chatId: match.id,
+          senderId: user.id,
+          content: buildGuestProposalContent(name, position),
+          timestamp: new Date().toISOString(),
+          type: 'action',
+          proposalId: result.proposalId,
+        },
+      ];
+    });
+    setSenders((prev) => ({ ...prev, [user.id]: user }));
+    if (isOrganizer) {
+      await refreshMatch(match.id).catch(() => {});
+    }
+    setTimeout(() => scrollToLatest(), 80);
+  };
+
+  const handleProposeTransfer = async (
+    playerId: string,
+    fromSide: TeamSide,
+    toSide: TeamSide
+  ) => {
+    if (!match || !user) return;
+    const candidate = transferCandidates.find((c) => c.id === playerId);
+    const content = buildTransferProposalContent(
+      candidate?.name ?? 'Un joueur',
+      fromSide,
+      toSide
+    );
+    const result = await createMatchProposal({
+      matchId: match.id,
+      proposalType: 'player_transfer',
+      payload: transferPayload({
+        playerId,
+        playerName: candidate?.name ?? 'Un joueur',
+        fromSide,
+        toSide,
+      }),
+      content,
+    });
+    const proposal = await fetchProposalById(result.proposalId);
+    if (proposal) {
+      setProposals((prev) => ({ ...prev, [proposal.id]: proposal }));
+    }
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === result.messageId)) return prev;
+      return [
+        ...prev,
+        {
+          id: result.messageId,
+          chatId: match.id,
+          senderId: user.id,
+          content,
+          timestamp: new Date().toISOString(),
+          type: 'action',
+          proposalId: result.proposalId,
+        },
+      ];
+    });
+    setSenders((prev) => ({ ...prev, [user.id]: user }));
+    if (isOrganizer) {
+      await refreshMatch(match.id).catch(() => {});
+    }
+    setTimeout(() => scrollToLatest(), 80);
+  };
+
+  const handleProposeFriend = async (friendId: string, friendName: string) => {
+    if (!match || !user) return;
+    const content = buildFriendInviteProposalContent(friendName);
+    const result = await createMatchProposal({
+      matchId: match.id,
+      proposalType: 'friend_invite',
+      payload: friendInvitePayload(friendId, friendName),
+      content,
+    });
+    const proposal = await fetchProposalById(result.proposalId);
+    if (proposal) {
+      setProposals((prev) => ({ ...prev, [proposal.id]: proposal }));
+    }
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === result.messageId)) return prev;
+      return [
+        ...prev,
+        {
+          id: result.messageId,
+          chatId: match.id,
+          senderId: user.id,
+          content,
+          timestamp: new Date().toISOString(),
+          type: 'action',
+          proposalId: result.proposalId,
+        },
+      ];
+    });
+    setSenders((prev) => ({ ...prev, [user.id]: user }));
+    if (isOrganizer) {
+      await refreshMatch(match.id).catch(() => {});
+    }
+    setTimeout(() => scrollToLatest(), 80);
+  };
+
+  const handleResolve = async (proposalId: string, accept: boolean) => {
+    if (resolvingId) return;
+    setResolvingId(proposalId);
+    try {
+      const updated = await resolveMatchProposal(proposalId, accept);
+      setProposals((prev) => ({ ...prev, [updated.id]: updated }));
+      if (accept && match) {
+        await refreshMatch(match.id).catch(() => {});
+      }
+      const remaining = Object.values(proposals).filter(
+        (p) => p.id !== proposalId && p.status === 'pending'
+      ).length;
+      if (remaining === 0) {
+        setPendingSheetOpen(false);
+      }
+    } catch (e) {
+      Alert.alert(
+        'Erreur',
+        e instanceof Error ? e.message : 'Impossible de traiter la proposition'
+      );
+    } finally {
+      setResolvingId(null);
     }
   };
 
@@ -313,9 +643,17 @@ export default function MatchChatScreen() {
   }
 
   const bottomInset = keyboardHeight > 0 ? keyboardHeight : insets.bottom;
+  const canPropose = match.status === 'upcoming';
 
   return (
     <View style={styles.container}>
+      {isOrganizer ? (
+        <PendingProposalsBanner
+          count={pendingProposals.length}
+          onPress={() => setPendingSheetOpen(true)}
+        />
+      ) : null}
+
       <FlatList
         ref={listRef}
         inverted={displayMessages.length > 0}
@@ -342,15 +680,33 @@ export default function MatchChatScreen() {
           const sender = item.senderId === user?.id ? user : senders[item.senderId];
           const isOwn = item.senderId === user?.id;
           const canOpenProfile = !isOwn && item.senderId !== 'system' && !isDeletedUser(sender);
+          const onSenderPress =
+            canOpenProfile ? () => openUserProfile(router, item.senderId, sender) : undefined;
+
+          if (item.type === 'action' && item.proposalId && proposals[item.proposalId]) {
+            return (
+              <ProposalCard
+                proposal={proposals[item.proposalId]}
+                isOrganizer={isOrganizer}
+                senderName={sender?.name}
+                senderAvatar={sender?.avatar}
+                isOwn={isOwn}
+                timestamp={item.timestamp}
+                resolving={resolvingId === item.proposalId}
+                onAccept={() => handleResolve(item.proposalId!, true)}
+                onReject={() => handleResolve(item.proposalId!, false)}
+                onSenderPress={onSenderPress}
+              />
+            );
+          }
+
           return (
             <ChatBubble
               message={item}
               isOwn={isOwn}
               senderName={sender?.name}
               senderAvatar={sender?.avatar}
-              onSenderPress={
-                canOpenProfile ? () => openUserProfile(router, item.senderId, sender) : undefined
-              }
+              onSenderPress={onSenderPress}
             />
           );
         }}
@@ -360,6 +716,15 @@ export default function MatchChatScreen() {
       />
 
       <View style={[styles.inputBar, { paddingBottom: Spacing.md + bottomInset }]}>
+        {canPropose ? (
+          <Pressable
+            style={styles.proposeBtn}
+            onPress={() => setProposeOpen(true)}
+            hitSlop={6}
+          >
+            <Ionicons name="add" size={24} color={Colors.primary} />
+          </Pressable>
+        ) : null}
         <TextInput
           style={styles.input}
           placeholder="Écrire un message..."
@@ -377,6 +742,29 @@ export default function MatchChatScreen() {
           )}
         </Pressable>
       </View>
+
+      <ProposeMenuModal
+        visible={proposeOpen}
+        onClose={() => setProposeOpen(false)}
+        presentCount={presentCount}
+        maxPlayers={match.maxPlayers}
+        transferCandidates={transferCandidates}
+        friendCandidates={friendCandidates}
+        isOrganizer={isOrganizer}
+        onProposeGuest={handleProposeGuest}
+        onProposeTransfer={handleProposeTransfer}
+        onProposeFriend={handleProposeFriend}
+      />
+
+      <PendingProposalsSheet
+        visible={pendingSheetOpen}
+        onClose={() => setPendingSheetOpen(false)}
+        proposals={pendingProposals}
+        proposerNames={proposerNames}
+        resolvingId={resolvingId}
+        onAccept={(proposalId) => handleResolve(proposalId, true)}
+        onReject={(proposalId) => handleResolve(proposalId, false)}
+      />
     </View>
   );
 }
@@ -418,6 +806,16 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border,
     backgroundColor: Colors.surface,
     gap: Spacing.sm,
+  },
+  proposeBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
     flex: 1,

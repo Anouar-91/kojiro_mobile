@@ -104,13 +104,67 @@ export interface Team {
   averageLevel: number;
 }
 
+export type MatchProposalType = 'guest_add' | 'player_transfer' | 'team_split' | 'friend_invite';
+export type MatchProposalStatus = 'pending' | 'accepted' | 'rejected';
+
+export interface GuestAddProposalPayload {
+  guest_name: string;
+  guest_position?: Position | null;
+}
+
+export interface PlayerTransferProposalPayload {
+  player_id: string;
+  player_name: string;
+  from_side: 'A' | 'B';
+  to_side: 'A' | 'B';
+}
+
+export interface FriendInviteProposalPayload {
+  user_id: string;
+  user_name: string;
+}
+
+export interface TeamSplitProposalPayload {
+  formation_a: string;
+  formation_b: string;
+  team_a_names?: string[];
+  team_b_names?: string[];
+  lineups: {
+    user_id?: string;
+    attendee_id?: string;
+    team_side: 'A' | 'B';
+    slot_id?: string;
+    pos_x?: string;
+    pos_y?: string;
+  }[];
+}
+
+export type MatchProposalPayload =
+  | GuestAddProposalPayload
+  | PlayerTransferProposalPayload
+  | TeamSplitProposalPayload
+  | FriendInviteProposalPayload;
+
+export interface MatchProposal {
+  id: string;
+  matchId: string;
+  proposedBy: string;
+  proposalType: MatchProposalType;
+  payload: MatchProposalPayload;
+  status: MatchProposalStatus;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  createdAt: string;
+}
+
 export interface ChatMessage {
   id: string;
   chatId: string;
   senderId: string;
   content: string;
   timestamp: string;
-  type: 'text' | 'image' | 'system';
+  type: 'text' | 'image' | 'system' | 'action';
+  proposalId?: string;
 }
 
 export interface Tournament {
