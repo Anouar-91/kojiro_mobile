@@ -68,6 +68,7 @@ export type DbMatch = {
   visibility: string;
   status: string;
   recruitment_closed: boolean;
+  completed_without_stats?: boolean;
   image_url: string | null;
   tournament_id: string | null;
   created_at: string;

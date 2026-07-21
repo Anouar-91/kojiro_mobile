@@ -102,6 +102,7 @@ export function mapDbMatchToMatch(row: DbMatch): Match {
     maxPlayers: row.max_players,
     status: row.status as Match['status'],
     recruitmentClosed: row.recruitment_closed ?? false,
+    completedWithoutStats: row.completed_without_stats ?? false,
     attendees,
     chatId: row.id,
     imageUrl: row.image_url ?? undefined,

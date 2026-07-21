@@ -301,19 +301,32 @@ export default function MatchRecapScreen() {
       </Text>
 
       <View style={styles.scoreCard}>
-        <View style={styles.scoreTeam}>
-          <Text style={styles.scoreTeamLabel}>Équipe A</Text>
-          <Text style={styles.scoreValue}>{recap.teamAScore}</Text>
-        </View>
-        <Text style={styles.scoreDivider}>-</Text>
-        <View style={styles.scoreTeam}>
-          <Text style={styles.scoreTeamLabel}>Équipe B</Text>
-          <Text style={styles.scoreValue}>{recap.teamBScore}</Text>
-        </View>
+        {recap.completedWithoutStats && recap.score === '–' ? (
+          <Text style={styles.scoreMissing}>Score non renseigné</Text>
+        ) : (
+          <>
+            <View style={styles.scoreTeam}>
+              <Text style={styles.scoreTeamLabel}>Équipe A</Text>
+              <Text style={styles.scoreValue}>{recap.teamAScore}</Text>
+            </View>
+            <Text style={styles.scoreDivider}>-</Text>
+            <View style={styles.scoreTeam}>
+              <Text style={styles.scoreTeamLabel}>Équipe B</Text>
+              <Text style={styles.scoreValue}>{recap.teamBScore}</Text>
+            </View>
+          </>
+        )}
       </View>
 
-      {myStats && <MyMatchStatsCard stats={myStats} />}
+      {recap.completedWithoutStats && (
+        <Text style={styles.simpleCloseNote}>
+          Match clôturé sans stats détaillées (buts, notes, MVP).
+        </Text>
+      )}
 
+      {myStats && !recap.completedWithoutStats && <MyMatchStatsCard stats={myStats} />}
+
+      {!recap.completedWithoutStats && (
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Faits marquants</Text>
         {recap.mvp && (
@@ -325,6 +338,7 @@ export default function MatchRecapScreen() {
         <HighlightRow icon="goal" text={formatScorers(recap.players)} />
         <HighlightRow icon="assist" text={formatAssisters(recap.players)} />
       </View>
+      )}
 
       {composition && composition.lineups.length > 0 && match && (
         <View style={styles.section}>
@@ -371,7 +385,7 @@ export default function MatchRecapScreen() {
         })}
       </View>
 
-      {isOrganizer && (
+      {isOrganizer && !recap.completedWithoutStats && (
         <Button
           title="Rouvrir les stats"
           onPress={handleReopenStats}
@@ -414,6 +428,13 @@ const styles = StyleSheet.create({
   scoreTeamLabel: { ...Typography.caption, color: Colors.textMuted, marginBottom: Spacing.xs },
   scoreValue: { ...Typography.h1, color: Colors.text },
   scoreDivider: { ...Typography.h2, color: Colors.textMuted },
+  scoreMissing: { ...Typography.h3, color: Colors.textSecondary, textAlign: 'center' },
+  simpleCloseNote: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
   myStatsCard: {
     backgroundColor: Colors.surfaceElevated,
     borderRadius: 12,

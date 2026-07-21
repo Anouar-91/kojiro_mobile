@@ -40,18 +40,36 @@ export function canEditComposition(
   matchStatus: string,
   _composition: MatchComposition | null
 ): boolean {
-  if (matchStatus === 'completed' || matchStatus === 'live' || matchStatus === 'pending_stats') return false;
+  if (
+    matchStatus === 'completed' ||
+    matchStatus === 'cancelled' ||
+    matchStatus === 'live' ||
+    matchStatus === 'pending_stats'
+  ) {
+    return false;
+  }
   if (role === 'organizer') return true;
   if (role === 'captain_a' || role === 'captain_b') return true;
   return false;
 }
 
 export function canPublishComposition(role: CompositionRole, matchStatus: string): boolean {
-  return role === 'organizer' && matchStatus !== 'completed' && matchStatus !== 'live' && matchStatus !== 'pending_stats';
+  return (
+    role === 'organizer' &&
+    matchStatus !== 'completed' &&
+    matchStatus !== 'cancelled' &&
+    matchStatus !== 'live' &&
+    matchStatus !== 'pending_stats'
+  );
 }
 
 export function canAssignCaptains(role: CompositionRole, matchStatus: string): boolean {
-  return role === 'organizer' && matchStatus !== 'completed' && matchStatus !== 'pending_stats';
+  return (
+    role === 'organizer' &&
+    matchStatus !== 'completed' &&
+    matchStatus !== 'cancelled' &&
+    matchStatus !== 'pending_stats'
+  );
 }
 
 export function isCaptainRole(role: CompositionRole): boolean {

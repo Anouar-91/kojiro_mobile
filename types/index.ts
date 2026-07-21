@@ -73,6 +73,8 @@ export interface Match {
   status: MatchStatus;
   /** Organisateur a clos le recrutement (inscriptions / invitations) */
   recruitmentClosed?: boolean;
+  /** Clôturé sans saisie collaborative des stats */
+  completedWithoutStats?: boolean;
   attendees: MatchAttendee[];
   teams?: Team[];
   chatId: string;
@@ -202,7 +204,7 @@ export interface LeaderboardEntry {
 
 export interface Notification {
   id: string;
-  type: 'match_invite' | 'match_invite_suggestion' | 'match_reminder' | 'match_recap' | 'match_stats' | 'match_waitlist' | 'team_assigned' | 'chat_message' | 'social' | 'tournament' | 'friend_request' | 'friend_match_created';
+  type: 'match_invite' | 'match_invite_suggestion' | 'match_reminder' | 'match_recap' | 'match_stats' | 'match_cancelled' | 'match_waitlist' | 'team_assigned' | 'chat_message' | 'social' | 'tournament' | 'friend_request' | 'friend_match_created';
   title: string;
   body: string;
   read: boolean;
@@ -258,6 +260,7 @@ export interface MatchRecap {
   score: string;
   teamAScore: number;
   teamBScore: number;
+  completedWithoutStats?: boolean;
   players: MatchRecapPlayer[];
   mvp: { userId: string; name: string; isGuest?: boolean } | null;
 }

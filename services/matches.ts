@@ -189,6 +189,24 @@ export async function reopenMatchRecruitment(matchId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export async function cancelMatch(matchId: string): Promise<void> {
+  const { error } = await supabase.rpc('cancel_match', { p_match_id: matchId });
+  if (error) throw new Error(error.message);
+}
+
+export async function closeMatchSimple(
+  matchId: string,
+  teamAScore?: number | null,
+  teamBScore?: number | null
+): Promise<void> {
+  const { error } = await supabase.rpc('close_match_simple', {
+    p_match_id: matchId,
+    p_team_a_score: teamAScore ?? null,
+    p_team_b_score: teamBScore ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function removeAttendeeByOrganizer(matchId: string, userId: string): Promise<void> {
   const { error } = await supabase.rpc('organizer_remove_attendee', {
     p_match_id: matchId,

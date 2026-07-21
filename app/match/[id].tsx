@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MatchOrganizerSteps } from '@/components/match/MatchOrganizerSteps';
@@ -18,7 +18,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useMatchChatUnread } from '@/hooks/useMatchChatUnread';
 import { useEnsureMatch } from '@/hooks/useEnsureMatch';
-import { closeMatchRecruitment, reopenMatchRecruitment } from '@/services/matches';
+import { closeMatchRecruitment, reopenMatchRecruitment, cancelMatch, closeMatchSimple } from '@/services/matches';
 import { assignMatchCaptains, fetchMatchComposition, getTeamPlayerIds } from '@/services/composition';
 import { reopenMatchStats } from '@/services/matchStats';
 import { createNotification } from '@/services/notifications';
@@ -97,6 +97,10 @@ export default function MatchDetailScreen() {
   const [savingSubstitutes, setSavingSubstitutes] = useState(false);
   const [pendingSuggestions, setPendingSuggestions] = useState<MatchInviteSuggestion[]>([]);
   const [resolvingSuggestionId, setResolvingSuggestionId] = useState<string | null>(null);
+  const [closeModalVisible, setCloseModalVisible] = useState(false);
+  const [closeScoreA, setCloseScoreA] = useState('');
+  const [closeScoreB, setCloseScoreB] = useState('');
+  const [closingMatch, setClosingMatch] = useState(false);
   const canUseChat = useMemo(
     () => (match && user ? canAccessMatchChat(match, user.id) : false),
     [match, user?.id]
@@ -265,6 +269,8 @@ export default function MatchDetailScreen() {
   const composeButtonLabel = getComposeButtonLabel(compositionRole, canCompose);
   const hasLineups = hasCompositionLineups(composition);
   const isCompleted = match.status === 'completed';
+  const isCancelled = match.status === 'cancelled';
+  const isTerminal = isCompleted || isCancelled;
   const isPendingStats = match.status === 'pending_stats';
   const recruitmentClosed = isRecruitmentClosed(match);
   const attendanceFullyLocked = isAttendanceFullyLocked(match);
@@ -432,6 +438,73 @@ export default function MatchDetailScreen() {
     }
   };
 
+  const handleCancelMatch = () => {
+    Alert.alert(
+      'Annuler le match',
+      'Le match n\'a pas eu lieu. Les inscrits seront notifiés. Aucune stat ni XP ne sera enregistré.',
+      [
+        { text: 'Retour', style: 'cancel' },
+        {
+          text: 'Annuler le match',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelMatch(match.id);
+              await fetchMatches(user?.id);
+              Alert.alert('Match annulé', 'Les joueurs ont été notifiés.');
+            } catch (e) {
+              Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'annuler le match');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const openCloseMatchModal = () => {
+    setCloseScoreA('');
+    setCloseScoreB('');
+    setCloseModalVisible(true);
+  };
+
+  const handleCloseMatchSimple = async (withScore: boolean) => {
+    let scoreA: number | null = null;
+    let scoreB: number | null = null;
+    if (withScore) {
+      scoreA = parseInt(closeScoreA, 10);
+      scoreB = parseInt(closeScoreB, 10);
+      if (Number.isNaN(scoreA) || Number.isNaN(scoreB) || scoreA < 0 || scoreB < 0) {
+        Alert.alert('Score invalide', 'Indique deux scores entiers (≥ 0), ou clôture sans score.');
+        return;
+      }
+    }
+
+    setClosingMatch(true);
+    try {
+      await closeMatchSimple(match.id, scoreA, scoreB);
+      setCloseModalVisible(false);
+      await fetchMatches(user?.id);
+      await refreshProfile();
+      Alert.alert(
+        'Match clôturé',
+        withScore
+          ? 'Le match est terminé avec le score. Pas de stats individuelles.'
+          : 'Le match est terminé sans score ni stats détaillées.',
+        [
+          {
+            text: 'Voir le résumé',
+            onPress: () => router.push({ pathname: '/match/recap', params: { id: match.id } }),
+          },
+          { text: 'OK', style: 'cancel' },
+        ]
+      );
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de clôturer le match');
+    } finally {
+      setClosingMatch(false);
+    }
+  };
+
   const handleClaimWaitlistSpot = async () => {
     if (!user) return;
     try {
@@ -499,10 +572,11 @@ export default function MatchDetailScreen() {
           <Text style={styles.format}>{getMatchFormatDescription(match.format, match.substitutesPerTeam)}</Text>
           {isFriendsOnly && <Badge label="Entre amis" variant="secondary" />}
           {isCompleted && <Badge label="Terminé" variant="success" />}
+          {isCancelled && <Badge label="Annulé" variant="error" />}
           {isPendingStats && <Badge label="Stats en cours" variant="warning" />}
           {match.status === 'live' && <Badge label="En cours" variant="primary" />}
-          {recruitmentClosed && <Badge label="Recrutement clos" variant="secondary" />}
-          {matchIsFull && !isCompleted && <Badge label="Complet" variant="secondary" />}
+          {recruitmentClosed && !isTerminal && <Badge label="Recrutement clos" variant="secondary" />}
+          {matchIsFull && !isTerminal && <Badge label="Complet" variant="secondary" />}
         </View>
         <Text style={styles.title}>{match.title}</Text>
         <Text style={styles.date}>{formatMatchDate(match.date, match.time)}</Text>
@@ -527,7 +601,7 @@ export default function MatchDetailScreen() {
         </View>
       </View>
 
-      {isOrganizer && !isCompleted && (
+      {isOrganizer && !isTerminal && (
         <View style={styles.section}>
           <MatchOrganizerSteps
             match={match}
@@ -738,7 +812,7 @@ export default function MatchDetailScreen() {
         />
       </View>
 
-      {isOrganizer && !isCompleted && match.status === 'upcoming' && (
+      {isOrganizer && !isTerminal && match.status === 'upcoming' && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Capitaines</Text>
           <CaptainPicker
@@ -762,7 +836,7 @@ export default function MatchDetailScreen() {
       )}
 
       <View style={styles.actions}>
-        {isOrganizer && !isCompleted && match.status === 'upcoming' && !recruitmentClosed && (
+        {isOrganizer && !isTerminal && match.status === 'upcoming' && !recruitmentClosed && (
           <Button
             title="Fermer le recrutement"
             onPress={handleCloseRecruitment}
@@ -771,7 +845,7 @@ export default function MatchDetailScreen() {
             variant="outline"
           />
         )}
-        {isOrganizer && !isCompleted && match.status === 'upcoming' && recruitmentClosed && (
+        {isOrganizer && !isTerminal && match.status === 'upcoming' && recruitmentClosed && (
           <Button
             title="Rouvrir le recrutement"
             onPress={handleReopenRecruitment}
@@ -780,7 +854,7 @@ export default function MatchDetailScreen() {
             variant="outline"
           />
         )}
-        {isOrganizer && !isCompleted && !isPendingStats && (
+        {isOrganizer && !isTerminal && !isPendingStats && (
           <Button
             title="Ouvrir la saisie des stats"
             onPress={() => router.push({ pathname: '/match/stats', params: { id: match.id } })}
@@ -798,6 +872,24 @@ export default function MatchDetailScreen() {
             variant="primary"
           />
         )}
+        {isOrganizer && !isTerminal && (
+          <Button
+            title="Clôturer sans stats"
+            onPress={openCloseMatchModal}
+            icon="checkmark-done-outline"
+            fullWidth
+            variant="outline"
+          />
+        )}
+        {isOrganizer && !isTerminal && (
+          <Button
+            title="Annuler le match"
+            onPress={handleCancelMatch}
+            icon="close-circle-outline"
+            fullWidth
+            variant="ghost"
+          />
+        )}
         {isCompleted && (
           <Button
             title="Voir le résumé"
@@ -806,7 +898,7 @@ export default function MatchDetailScreen() {
             fullWidth
           />
         )}
-        {isCompleted && isOrganizer && (
+        {isCompleted && isOrganizer && !match.completedWithoutStats && (
           <Button
             title="Rouvrir les stats"
             onPress={handleReopenStats}
@@ -815,7 +907,7 @@ export default function MatchDetailScreen() {
             variant="outline"
           />
         )}
-        {!isCompleted && (
+        {!isTerminal && (
           <>
             {canCompose && (
               <Button
@@ -836,7 +928,16 @@ export default function MatchDetailScreen() {
             )}
           </>
         )}
-        {!isCompleted && canAddPlayers && (
+        {isTerminal && hasLineups && (
+          <Button
+            title="Voir la composition"
+            onPress={() => router.push({ pathname: '/match/lineup', params: { id: match.id } })}
+            icon="eye-outline"
+            fullWidth
+            variant="outline"
+          />
+        )}
+        {!isTerminal && canAddPlayers && (
           <>
             <Button
               title="Inviter des joueurs"
@@ -854,7 +955,7 @@ export default function MatchDetailScreen() {
             />
           </>
         )}
-        {!isCompleted && canSuggest && (
+        {!isTerminal && canSuggest && (
           <Button
             title="Proposer un ami"
             onPress={() => router.push({ pathname: '/match/invite', params: { id: match.id } })}
@@ -870,6 +971,66 @@ export default function MatchDetailScreen() {
           presentCount={presentUsers.length}
           maxPlayers={match.maxPlayers}
         />
+        <Modal
+          visible={closeModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setCloseModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Clôturer sans stats</Text>
+              <Text style={styles.modalBody}>
+                Le match a eu lieu mais tu n'as pas les stats détaillées. Tu peux enregistrer juste le score, ou clôturer sans score.
+              </Text>
+              <View style={styles.scoreRow}>
+                <View style={styles.scoreField}>
+                  <Text style={styles.scoreLabel}>Équipe A</Text>
+                  <TextInput
+                    style={styles.scoreInput}
+                    value={closeScoreA}
+                    onChangeText={setCloseScoreA}
+                    keyboardType="number-pad"
+                    placeholder="0"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+                <Text style={styles.scoreSep}>–</Text>
+                <View style={styles.scoreField}>
+                  <Text style={styles.scoreLabel}>Équipe B</Text>
+                  <TextInput
+                    style={styles.scoreInput}
+                    value={closeScoreB}
+                    onChangeText={setCloseScoreB}
+                    keyboardType="number-pad"
+                    placeholder="0"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+              </View>
+              <Button
+                title="Clôturer avec ce score"
+                onPress={() => handleCloseMatchSimple(true)}
+                loading={closingMatch}
+                fullWidth
+              />
+              <Button
+                title="Clôturer sans score"
+                onPress={() => handleCloseMatchSimple(false)}
+                loading={closingMatch}
+                variant="outline"
+                fullWidth
+              />
+              <Button
+                title="Retour"
+                onPress={() => setCloseModalVisible(false)}
+                variant="ghost"
+                fullWidth
+                disabled={closingMatch}
+              />
+            </View>
+          </View>
+        </Modal>
         {__DEV__ && isOrganizer && match.status === 'upcoming' && (
           <DevFillMatchPanel
             match={match}
@@ -882,7 +1043,7 @@ export default function MatchDetailScreen() {
       </View>
     </ScrollView>
 
-    {!isCompleted && canUseChat && (
+    {!isTerminal && canUseChat && (
       <Pressable
         style={[styles.chatFab, { bottom: 24 + insets.bottom }]}
         onPress={() => router.push({ pathname: '/match/chat', params: { id: match.id } })}
@@ -1000,5 +1161,58 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontWeight: '700',
     fontSize: 11,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'center',
+    padding: Spacing.xxl,
+  },
+  modalCard: {
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xxl,
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modalTitle: {
+    ...Typography.h3,
+    color: Colors.text,
+  },
+  modalBody: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+    lineHeight: 22,
+  },
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginVertical: Spacing.sm,
+  },
+  scoreField: {
+    flex: 1,
+    gap: Spacing.xs,
+  },
+  scoreLabel: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+  },
+  scoreInput: {
+    ...Typography.h2,
+    color: Colors.text,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    textAlign: 'center',
+  },
+  scoreSep: {
+    ...Typography.h2,
+    color: Colors.textMuted,
+    marginTop: Spacing.lg,
   },
 });

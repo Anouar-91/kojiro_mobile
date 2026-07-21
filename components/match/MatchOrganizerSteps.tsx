@@ -27,6 +27,7 @@ export function MatchOrganizerSteps({ match, presentCount, hasComposition }: Mat
         if (presentCount < 2) return match.status === 'upcoming' ? 'current' : 'done';
         return 'done';
       case 'compose':
+        if (match.status === 'cancelled') return hasComposition ? 'done' : 'pending';
         if (hasComposition) return 'done';
         if (presentCount >= 2 && match.status === 'upcoming' && !match.recruitmentClosed) return 'current';
         if (match.recruitmentClosed || match.status === 'live' || match.status === 'completed' || match.status === 'pending_stats') {
@@ -34,11 +35,13 @@ export function MatchOrganizerSteps({ match, presentCount, hasComposition }: Mat
         }
         return 'pending';
       case 'play':
+        if (match.status === 'cancelled') return 'pending';
         if (match.status === 'completed' || match.status === 'pending_stats') return 'done';
         if (match.recruitmentClosed || match.status === 'live') return 'current';
         if (hasComposition && match.status === 'upcoming') return 'current';
         return 'pending';
       case 'finish':
+        if (match.status === 'cancelled') return 'pending';
         if (match.status === 'completed') return 'done';
         if (match.status === 'pending_stats') return 'current';
         if (match.recruitmentClosed || match.status === 'live') return 'current';

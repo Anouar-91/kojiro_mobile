@@ -85,6 +85,7 @@ export async function fetchMatchRecap(matchId: string): Promise<MatchRecap> {
     score: recap.score as string,
     teamAScore: Number(recap.teamAScore ?? 0),
     teamBScore: Number(recap.teamBScore ?? 0),
+    completedWithoutStats: Boolean(recap.completedWithoutStats),
     mvp: recap.mvp
       ? {
           ...(recap.mvp as MatchRecap['mvp']),
