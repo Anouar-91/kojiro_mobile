@@ -9,6 +9,7 @@ import { MatchOrganizerSteps } from '@/components/match/MatchOrganizerSteps';
 import { AddGuestPlayerModal } from '@/components/match/AddGuestPlayerModal';
 import { CaptainPicker } from '@/components/match/CaptainPicker';
 import { MatchSubstitutesEditor } from '@/components/match/MatchSubstitutesEditor';
+import { MatchMoreActionsSheet } from '@/components/match/MatchMoreActionsSheet';
 import { DevFillMatchPanel } from '@/components/dev/DevFillMatchPanel';
 
 import { Badge } from '@/components/ui/Badge';
@@ -18,6 +19,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useMatchChatUnread } from '@/hooks/useMatchChatUnread';
 import { useEnsureMatch } from '@/hooks/useEnsureMatch';
+import { useNow } from '@/hooks/useNow';
 import { closeMatchRecruitment, reopenMatchRecruitment, cancelMatch, closeMatchSimple } from '@/services/matches';
 import { assignMatchCaptains, fetchMatchComposition, getTeamPlayerIds } from '@/services/composition';
 import { reopenMatchStats } from '@/services/matchStats';
@@ -63,6 +65,11 @@ import {
   getCompositionRole,
   getRegisteredPresentUserIds,
 } from '@/utils/compositionPermissions';
+import {
+  getPrimaryMatchAction,
+  getSecondaryMatchActions,
+  MatchActionId,
+} from '@/utils/matchOrganizerCta';
 import { MatchComposition } from '@/types/lineup';
 
 const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
@@ -101,6 +108,8 @@ export default function MatchDetailScreen() {
   const [closeScoreA, setCloseScoreA] = useState('');
   const [closeScoreB, setCloseScoreB] = useState('');
   const [closingMatch, setClosingMatch] = useState(false);
+  const [moreActionsVisible, setMoreActionsVisible] = useState(false);
+  const now = useNow();
   const canUseChat = useMemo(
     () => (match && user ? canAccessMatchChat(match, user.id) : false),
     [match, user?.id]
@@ -343,6 +352,23 @@ export default function MatchDetailScreen() {
   const canSuggest = canSuggestPlayers(match, user?.id);
   const canEditSubstitutes =
     isOrganizer && (match.status === 'upcoming' || match.status === 'live');
+
+  const actionCtx = {
+    match,
+    isOrganizer,
+    presentCount: presentUsers.length,
+    hasComposition,
+    hasLineups,
+    canCompose,
+    composeLabel: composeButtonLabel,
+    canAddPlayers,
+    canSuggest,
+    isRegisteredPresent: isRegisteredPresent(match, user?.id),
+    now,
+  };
+  const primaryAction = getPrimaryMatchAction(actionCtx);
+  const secondaryActions = getSecondaryMatchActions(actionCtx);
+
   const handleIncreaseSubstitutes = async (nextValue: number) => {
     if (!canEditSubstitutes || nextValue <= match.substitutesPerTeam) return;
     setSavingSubstitutes(true);
@@ -502,6 +528,46 @@ export default function MatchDetailScreen() {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de clôturer le match');
     } finally {
       setClosingMatch(false);
+    }
+  };
+
+  const runMatchAction = (actionId: MatchActionId) => {
+    switch (actionId) {
+      case 'invite':
+      case 'suggest_friend':
+        router.push({ pathname: '/match/invite', params: { id: match.id } });
+        break;
+      case 'add_guest':
+        setGuestModalVisible(true);
+        break;
+      case 'compose':
+        router.push({ pathname: '/match/teams', params: { id: match.id } });
+        break;
+      case 'view_lineup':
+        router.push({ pathname: '/match/lineup', params: { id: match.id } });
+        break;
+      case 'close_recruitment':
+        handleCloseRecruitment();
+        break;
+      case 'reopen_recruitment':
+        handleReopenRecruitment();
+        break;
+      case 'open_stats':
+      case 'finalize_stats':
+        router.push({ pathname: '/match/stats', params: { id: match.id } });
+        break;
+      case 'close_simple':
+        openCloseMatchModal();
+        break;
+      case 'cancel_match':
+        handleCancelMatch();
+        break;
+      case 'view_recap':
+        router.push({ pathname: '/match/recap', params: { id: match.id } });
+        break;
+      case 'reopen_stats':
+        handleReopenStats();
+        break;
     }
   };
 
@@ -836,134 +902,31 @@ export default function MatchDetailScreen() {
       )}
 
       <View style={styles.actions}>
-        {isOrganizer && !isTerminal && match.status === 'upcoming' && !recruitmentClosed && (
+        {primaryAction && (
           <Button
-            title="Fermer le recrutement"
-            onPress={handleCloseRecruitment}
-            icon="lock-closed-outline"
+            title={primaryAction.title}
+            onPress={() => runMatchAction(primaryAction.id)}
+            icon={primaryAction.icon as keyof typeof Ionicons.glyphMap}
+            fullWidth
+            variant={primaryAction.variant}
+            size="lg"
+          />
+        )}
+        {secondaryActions.length > 0 && (
+          <Button
+            title="Plus d'actions"
+            onPress={() => setMoreActionsVisible(true)}
+            icon="ellipsis-horizontal"
             fullWidth
             variant="outline"
           />
         )}
-        {isOrganizer && !isTerminal && match.status === 'upcoming' && recruitmentClosed && (
-          <Button
-            title="Rouvrir le recrutement"
-            onPress={handleReopenRecruitment}
-            icon="lock-open-outline"
-            fullWidth
-            variant="outline"
-          />
-        )}
-        {isOrganizer && !isTerminal && !isPendingStats && (
-          <Button
-            title="Ouvrir la saisie des stats"
-            onPress={() => router.push({ pathname: '/match/stats', params: { id: match.id } })}
-            icon="flag-outline"
-            fullWidth
-            variant={recruitmentClosed || match.status === 'live' ? 'primary' : 'secondary'}
-          />
-        )}
-        {(isPendingStats && (isOrganizer || isRegisteredPresent(match, user?.id))) && (
-          <Button
-            title={isOrganizer ? 'Finaliser les stats' : 'Saisir mes stats'}
-            onPress={() => router.push({ pathname: '/match/stats', params: { id: match.id } })}
-            icon="stats-chart-outline"
-            fullWidth
-            variant="primary"
-          />
-        )}
-        {isOrganizer && !isTerminal && (
-          <Button
-            title="Clôturer sans stats"
-            onPress={openCloseMatchModal}
-            icon="checkmark-done-outline"
-            fullWidth
-            variant="outline"
-          />
-        )}
-        {isOrganizer && !isTerminal && (
-          <Button
-            title="Annuler le match"
-            onPress={handleCancelMatch}
-            icon="close-circle-outline"
-            fullWidth
-            variant="ghost"
-          />
-        )}
-        {isCompleted && (
-          <Button
-            title="Voir le résumé"
-            onPress={() => router.push({ pathname: '/match/recap', params: { id: match.id } })}
-            icon="document-text-outline"
-            fullWidth
-          />
-        )}
-        {isCompleted && isOrganizer && !match.completedWithoutStats && (
-          <Button
-            title="Rouvrir les stats"
-            onPress={handleReopenStats}
-            icon="refresh-outline"
-            fullWidth
-            variant="outline"
-          />
-        )}
-        {!isTerminal && (
-          <>
-            {canCompose && (
-              <Button
-                title={composeButtonLabel}
-                onPress={() => router.push({ pathname: '/match/teams', params: { id: match.id } })}
-                icon="football-outline"
-                fullWidth
-              />
-            )}
-            {(hasLineups || !canCompose) && (
-              <Button
-                title="Voir la composition"
-                onPress={() => router.push({ pathname: '/match/lineup', params: { id: match.id } })}
-                icon="eye-outline"
-                fullWidth
-                variant={canCompose ? 'outline' : 'primary'}
-              />
-            )}
-          </>
-        )}
-        {isTerminal && hasLineups && (
-          <Button
-            title="Voir la composition"
-            onPress={() => router.push({ pathname: '/match/lineup', params: { id: match.id } })}
-            icon="eye-outline"
-            fullWidth
-            variant="outline"
-          />
-        )}
-        {!isTerminal && canAddPlayers && (
-          <>
-            <Button
-              title="Inviter des joueurs"
-              onPress={() => router.push({ pathname: '/match/invite', params: { id: match.id } })}
-              variant="outline"
-              icon="person-add-outline"
-              fullWidth
-            />
-            <Button
-              title="Ajouter un joueur sans compte"
-              onPress={() => setGuestModalVisible(true)}
-              variant="outline"
-              icon="person-outline"
-              fullWidth
-            />
-          </>
-        )}
-        {!isTerminal && canSuggest && (
-          <Button
-            title="Proposer un ami"
-            onPress={() => router.push({ pathname: '/match/invite', params: { id: match.id } })}
-            variant="outline"
-            icon="person-add-outline"
-            fullWidth
-          />
-        )}
+        <MatchMoreActionsSheet
+          visible={moreActionsVisible}
+          actions={secondaryActions}
+          onClose={() => setMoreActionsVisible(false)}
+          onSelect={(action) => runMatchAction(action.id)}
+        />
         <AddGuestPlayerModal
           visible={guestModalVisible}
           onClose={() => setGuestModalVisible(false)}
@@ -979,9 +942,9 @@ export default function MatchDetailScreen() {
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Clôturer sans stats</Text>
+              <Text style={styles.modalTitle}>Clôturer le match</Text>
               <Text style={styles.modalBody}>
-                Le match a eu lieu mais tu n'as pas les stats détaillées. Tu peux enregistrer juste le score, ou clôturer sans score.
+                Enregistre juste le score, ou clôture sans score. Pas de stats détaillées (+25 XP de participation).
               </Text>
               <View style={styles.scoreRow}>
                 <View style={styles.scoreField}>

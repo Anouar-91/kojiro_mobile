@@ -2,7 +2,7 @@
 
 Référence des actions qui créent une entrée dans `public.notifications` (in-app + push Expo).
 
-**Dernière mise à jour :** 2026-07-10
+**Dernière mise à jour :** 2026-07-21
 
 > Lors de l'ajout ou la modification d'une notification, mettre à jour ce fichier en même temps que le code.
 
@@ -61,6 +61,26 @@ L'organisateur peut insérer `match_invite`, `match_reminder`, `team_assigned` p
 | **Titre** | Match créé ! |
 | **Corps** | `"{titre}"` est prêt. Invite des joueurs ! |
 | **data** | `{ matchId }` |
+
+---
+
+### `match_reminder` — Rappels planifiés (J-0 / H-2)
+
+| Champ | Valeur |
+|-------|--------|
+| **Action** | Cron toutes les 15 min |
+| **Source** | SQL `send_scheduled_match_reminders()` |
+| **Fichier** | `supabase/migrations/058_scheduled_match_reminders.sql` |
+| **Destinataires** | Inscrits `present` + `maybe` (avec compte) |
+| **Idempotence** | Table `match_reminder_sent` (`day_of` / `h2`) |
+| **Fuseau** | `Europe/Paris` (date/heure match naïves) |
+
+| Kind | Fenêtre | Titre | data |
+|------|---------|-------|------|
+| `day_of` | Jour du match, 07:00–08:00 Paris | C'est aujourd'hui ⚽ | `{ matchId, reminder: 'day_of' }` |
+| `h2` | Coup d'envoi dans 1 h 45 – 2 h 15 | Dans 2 heures ⚽ | `{ matchId, reminder: 'h2' }` |
+
+Statut match requis : `upcoming` uniquement.
 
 ---
 

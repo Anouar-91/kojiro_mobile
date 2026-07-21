@@ -347,6 +347,22 @@ eas credentials
 
 Répondre **Yes** à Push Notifications lors du prochain build.
 
+### Rappels match (J-0 / H-2)
+
+Migration : `supabase/migrations/058_scheduled_match_reminders.sql`
+
+1. Activer l'extension **pg_cron** (Dashboard → Database → Extensions)
+2. Exécuter la migration dans le SQL Editor
+3. Vérifier le job :
+
+```sql
+SELECT * FROM cron.job WHERE jobname = 'kojiro-match-reminders';
+-- Test manuel :
+SELECT public.send_scheduled_match_reminders();
+```
+
+Les push partent via le trigger existant (`017`) dès qu'une notif est insérée. Les appareils doivent avoir un `push_token` Expo valide.
+
 ---
 
 ## 13. Commandes utiles

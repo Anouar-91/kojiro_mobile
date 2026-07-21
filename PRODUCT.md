@@ -404,7 +404,7 @@ Voir [DEPLOY.md](./DEPLOY.md) pour l'ordre complet. Dernières migrations produi
 - [ ] Brancher ou supprimer le statut `live` (cohérence doc / UI)
 - [ ] Classement par ville
 - [ ] Tournois : brackets et matchs liés
-- [ ] Rappels automatiques J-1 / H-2 avant match
+- [x] Rappels automatiques J-0 / H-2 avant match (`058_scheduled_match_reminders.sql`)
 - [ ] Partage de match (lien public / deep link)
 
 ---
