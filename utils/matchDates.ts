@@ -52,6 +52,22 @@ export function isMatchListedAsUpcoming(match: Match, now = Date.now()): boolean
   return match.status === 'upcoming' || match.status === 'live';
 }
 
+/** Match encore ouvert (upcoming/live), y compris après l'heure de début. */
+export function isMatchUnfinishedOpen(match: Pick<Match, 'status'>): boolean {
+  return match.status === 'upcoming' || match.status === 'live';
+}
+
+/**
+ * Match qui doit encore être finalisé côté stats :
+ * - déjà en `pending_stats`, ou
+ * - encore `upcoming`/`live` alors que le coup d'envoi est passé
+ *   (l'orga n'a pas encore ouvert la saisie).
+ */
+export function isMatchAwaitingStats(match: Match, now = Date.now()): boolean {
+  if (isMatchPendingStats(match)) return true;
+  return isMatchUnfinishedOpen(match) && isMatchPast(match, now);
+}
+
 /** Match en attente de saisie / finalisation des stats (hors liste principale). */
 export function isMatchPendingStats(match: Pick<Match, 'status'>): boolean {
   return match.status === 'pending_stats';

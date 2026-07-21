@@ -20,7 +20,7 @@ import { useProfileStore } from '@/store/profileStore';
 import { NewsItem, User } from '@/types';
 import { NEARBY_MATCH_RADIUS_KM, sortByProximity } from '@/utils/geo';
 import { isUserRegisteredForMatch } from '@/utils/matchAttendance';
-import { isMatchListedAsUpcoming } from '@/utils/matchDates';
+import { isMatchAwaitingStats, isMatchListedAsUpcoming } from '@/utils/matchDates';
 import { openUserProfile } from '@/utils/profileNavigation';
 
 export default function HomeScreen() {
@@ -36,6 +36,17 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const now = useNow();
 
+  const myMatchesNeedingStats = useMemo(
+    () =>
+      matches
+        .filter(
+          (m) =>
+            isMatchAwaitingStats(m, now) &&
+            (m.organizerId === user?.id || isUserRegisteredForMatch(m, user?.id))
+        )
+        .slice(0, 3),
+    [matches, user?.id, now]
+  );
   const myUpcomingMatches = useMemo(
     () =>
       matches
@@ -100,6 +111,23 @@ export default function HomeScreen() {
           fullWidth
           size="lg"
         />
+
+        {myMatchesNeedingStats.length > 0 && (
+          <>
+            <SectionHeader
+              title="Stats à finaliser"
+              action="Voir tout"
+              onAction={() => router.push('/(tabs)/matches')}
+            />
+            {myMatchesNeedingStats.map((match) => (
+              <UpcomingMatchCard
+                key={match.id}
+                match={match}
+                onPress={() => router.push(`/match/${match.id}`)}
+              />
+            ))}
+          </>
+        )}
 
         <SectionHeader
           title="Mes prochains matchs"

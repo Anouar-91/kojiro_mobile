@@ -5,8 +5,8 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { PitchFormationReadOnly } from '@/components/match/PitchFormation';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { fetchMatchComposition, getSlotAssignments } from '@/services/composition';
+import { useEnsureMatch } from '@/hooks/useEnsureMatch';
 import { useRefreshMatchProfiles } from '@/hooks/useRefreshMatchProfiles';
-import { useMatchStore } from '@/store/matchStore';
 import { useProfileStore } from '@/store/profileStore';
 import { User } from '@/types';
 import { MatchComposition } from '@/types/lineup';
@@ -19,7 +19,7 @@ import { buildGuestUser, isGuestPlayerId, parseGuestPlayerId, uniqueUsersById } 
 
 export default function LineupScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const match = useMatchStore((s) => s.getMatch(id ?? ''));
+  const { match, loading: matchLoading } = useEnsureMatch(id);
   const getProfile = useProfileStore((s) => s.getProfile);
   const [composition, setComposition] = useState<MatchComposition | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,12 +27,16 @@ export default function LineupScreen() {
   useRefreshMatchProfiles(match);
 
   useEffect(() => {
-    if (!match) return;
+    if (!match) {
+      if (!matchLoading) setLoading(false);
+      return;
+    }
+    setLoading(true);
     fetchMatchComposition(match.id)
       .then(setComposition)
       .catch(() => setComposition(null))
       .finally(() => setLoading(false));
-  }, [match]);
+  }, [match, matchLoading]);
 
   const layoutA = useMemo(() => {
     if (!match) return null;
@@ -53,18 +57,18 @@ export default function LineupScreen() {
     [layoutB]
   );
 
-  if (!match) {
+  if (matchLoading || loading) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.muted}>Match introuvable</Text>
+        <ActivityIndicator color={Colors.primary} />
       </View>
     );
   }
 
-  if (loading) {
+  if (!match) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={Colors.primary} />
+        <Text style={styles.muted}>Match introuvable</Text>
       </View>
     );
   }

@@ -13,6 +13,7 @@ import { PlayerListItem } from '@/components/community/CommunityComponents';
 import { Input } from '@/components/ui/Input';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { invitePlayerToMatch, suggestPlayerToMatch } from '@/services/invites';
+import { useEnsureMatch } from '@/hooks/useEnsureMatch';
 import { useFriendStore } from '@/store/friendStore';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
@@ -25,7 +26,7 @@ export default function InvitePlayersScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
-  const match = useMatchStore((s) => s.getMatch(id ?? ''));
+  const { match, loading: matchLoading } = useEnsureMatch(id);
   const fetchMatches = useMatchStore((s) => s.fetchMatches);
   const profiles = useProfileStore((s) => s.profiles);
   const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
@@ -93,6 +94,14 @@ export default function InvitePlayersScreen() {
     },
     [match, user, attendeeIds, invitedIds, fetchMatches, isSuggestMode]
   );
+
+  if (matchLoading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={Colors.primary} />
+      </View>
+    );
+  }
 
   if (!match) {
     return (

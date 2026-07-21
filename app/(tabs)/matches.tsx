@@ -21,7 +21,7 @@ import {
   distanceKm,
 } from '@/utils/geo';
 import { isUserRegisteredForMatch } from '@/utils/matchAttendance';
-import { getMatchStartMs, isMatchListedAsUpcoming, isMatchPendingStats } from '@/utils/matchDates';
+import { getMatchStartMs, isMatchAwaitingStats, isMatchListedAsUpcoming } from '@/utils/matchDates';
 
 type FormatFilter = 'all' | number;
 type ProximityFilter = 'all' | typeof NEARBY_MATCH_RADIUS_KM | typeof WIDER_MATCH_RADIUS_KM;
@@ -72,13 +72,13 @@ export default function MatchesScreen() {
 
   const statsToFinalize = useMemo<MatchWithDistance[]>(() => {
     return matches
-      .filter((match) => isMatchPendingStats(match) && isMyMatch(match, user?.id))
+      .filter((match) => isMatchAwaitingStats(match, now) && isMyMatch(match, user?.id))
       .map((match) => ({
         match,
         distance: distanceKm(userPosition, match.location),
       }))
       .sort((a, b) => (getMatchStartMs(b.match) ?? 0) - (getMatchStartMs(a.match) ?? 0));
-  }, [matches, user?.id, userPosition]);
+  }, [matches, user?.id, userPosition, now]);
 
   const filteredMatches = useMemo<MatchWithDistance[]>(() => {
     let pool = activeMatches.map((match) => ({

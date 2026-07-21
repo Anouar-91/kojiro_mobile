@@ -12,6 +12,7 @@ import { Match } from '@/types';
 import { formatShortDate, formatDistance, getMatchFormatDescription } from '@/utils/formatters';
 import { attendeeToDisplayUser } from '@/utils/guestAttendees';
 import { isMatchFull } from '@/utils/matchAttendance';
+import { isMatchAwaitingStats } from '@/utils/matchDates';
 
 interface UpcomingMatchCardProps {
   match: Match;
@@ -23,6 +24,7 @@ export function UpcomingMatchCard({ match, onPress, distance }: UpcomingMatchCar
   const getProfile = useProfileStore((s) => s.getProfile);
   const presentCount = match.attendees.filter((a) => a.status === 'present').length;
   const full = isMatchFull(match);
+  const awaitingStats = isMatchAwaitingStats(match);
   const avatars = match.attendees
     .filter((a) => a.status === 'present')
     .slice(0, 5)
@@ -33,9 +35,9 @@ export function UpcomingMatchCard({ match, onPress, distance }: UpcomingMatchCar
       <View style={styles.header}>
         <View style={styles.badges}>
           <Badge label={getMatchFormatDescription(match.format, match.substitutesPerTeam)} variant="primary" />
-          {match.status === 'live' && <Badge label="En cours" variant="warning" />}
-          {match.status === 'pending_stats' && <Badge label="Stats à finaliser" variant="warning" />}
-          {match.recruitmentClosed && match.status === 'upcoming' && (
+          {match.status === 'live' && !awaitingStats && <Badge label="En cours" variant="warning" />}
+          {awaitingStats && <Badge label="Stats à finaliser" variant="warning" />}
+          {match.recruitmentClosed && match.status === 'upcoming' && !awaitingStats && (
             <Badge label="Recrutement clos" variant="secondary" />
           )}
           {match.visibility === 'friends_only' && <Badge label="Amis" variant="secondary" />}

@@ -33,6 +33,7 @@ import {
   submitMyMatchStats,
   updateMatchScore,
 } from '@/services/matchStats';
+import { useEnsureMatch } from '@/hooks/useEnsureMatch';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { getPresentUsersFromMatch, useProfileStore } from '@/store/profileStore';
@@ -448,7 +449,7 @@ export default function MatchStatsScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
-  const match = useMatchStore((s) => s.getMatch(id ?? ''));
+  const { match, loading: matchLoading } = useEnsureMatch(id);
   const fetchMatches = useMatchStore((s) => s.fetchMatches);
   const getProfile = useProfileStore((s) => s.getProfile);
   const fetchProfiles = useProfileStore((s) => s.fetchProfiles);
@@ -833,6 +834,14 @@ export default function MatchStatsScreen() {
       setSaving(false);
     }
   };
+
+  if (matchLoading) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.muted}>Chargement…</Text>
+      </View>
+    );
+  }
 
   if (!match) {
     return (

@@ -22,6 +22,7 @@ import {
   createMatchProposal,
   teamSplitPayload,
 } from '@/services/proposals';
+import { useEnsureMatch } from '@/hooks/useEnsureMatch';
 import { useRefreshMatchProfiles } from '@/hooks/useRefreshMatchProfiles';
 import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
@@ -139,7 +140,7 @@ export default function TeamsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const match = useMatchStore((s) => s.getMatch(id ?? ''));
+  const { match, loading: matchLoading } = useEnsureMatch(id);
   const fetchMatches = useMatchStore((s) => s.fetchMatches);
   const getProfile = useProfileStore((s) => s.getProfile);
 
@@ -335,18 +336,18 @@ export default function TeamsScreen() {
     }
   };
 
-  if (!match) {
+  if (matchLoading || loading) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.muted}>Match introuvable</Text>
+        <Text style={styles.muted}>Chargement...</Text>
       </View>
     );
   }
 
-  if (loading) {
+  if (!match) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.muted}>Chargement...</Text>
+        <Text style={styles.muted}>Match introuvable</Text>
       </View>
     );
   }

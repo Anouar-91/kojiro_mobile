@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MatchOrganizerSteps } from '@/components/match/MatchOrganizerSteps';
@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useMatchChatUnread } from '@/hooks/useMatchChatUnread';
+import { useEnsureMatch } from '@/hooks/useEnsureMatch';
 import { closeMatchRecruitment, reopenMatchRecruitment } from '@/services/matches';
 import { assignMatchCaptains, fetchMatchComposition, getTeamPlayerIds } from '@/services/composition';
 import { reopenMatchStats } from '@/services/matchStats';
@@ -77,7 +78,7 @@ export default function MatchDetailScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
-  const match = useMatchStore((s) => s.getMatch(id ?? ''));
+  const { match, loading: matchLoading } = useEnsureMatch(id);
   const updateAttendance = useMatchStore((s) => s.updateAttendance);
   const removeAttendeeByOrganizer = useMatchStore((s) => s.removeAttendeeByOrganizer);
   const addGuestToMatch = useMatchStore((s) => s.addGuestToMatch);
@@ -220,6 +221,14 @@ export default function MatchDetailScreen() {
       ]
     );
   };
+
+  if (matchLoading) {
+    return (
+      <View style={styles.notFound}>
+        <ActivityIndicator color={Colors.primary} />
+      </View>
+    );
+  }
 
   if (!match) {
     return (

@@ -7,7 +7,7 @@ import {
   isMatchFull,
   validateAttendanceChange,
 } from '@/utils/matchAttendance';
-import { isMatchListedAsUpcoming, isMatchPendingStats } from '@/utils/matchDates';
+import { isMatchPendingStats, isMatchUnfinishedOpen } from '@/utils/matchDates';
 
 const MATCH_SELECT = `
   *,
@@ -22,11 +22,12 @@ export async function fetchMatches(userId?: string): Promise<Match[]> {
 
   if (error) throw new Error(error.message);
   const matches = (data ?? []).map(mapDbMatchToMatch).filter((m) => {
-    // Garder les matchs terminés / en stats ; exclure les upcoming/live déjà passés.
+    // Garder terminés / en stats / annulés, et tous les upcoming/live
+    // (y compris après l'heure de début, pour pouvoir ouvrir les stats).
     if (isMatchPendingStats(m) || m.status === 'completed' || m.status === 'cancelled') {
       return true;
     }
-    return isMatchListedAsUpcoming(m);
+    return isMatchUnfinishedOpen(m);
   });
 
   if (!userId) return matches;
